@@ -1,0 +1,16 @@
+# Lista fija, símbolos que aparecen en la base histórica parcial; no comprabilidad verificada
+NVDA
+VKTX
+GRAL
+VICR
+FLNA
+CMPX
+GME
+GEV
+AAPL
+MSFT
+AMZN
+TSLA
+AMD
+AVGO
+MU
