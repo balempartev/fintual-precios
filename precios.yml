@@ -1,0 +1,53 @@
+name: Precios Fintual x Nasdaq x Alpaca (solo lectura)
+on:
+  schedule:
+    # Cada 5 minutos, con guardia de horario exacto America/New_York en el siguiente paso.
+    - cron: '*/5 13-21 * * 1-5'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: publicacion-cotizaciones
+  cancel-in-progress: false
+jobs:
+  consultar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verificar sesion regular NY
+        id: horario
+        shell: bash
+        run: |
+          python - <<'PY'
+          import datetime as d, os
+          from zoneinfo import ZoneInfo
+          t = d.datetime.now(ZoneInfo('America/New_York'))
+          enabled = (t.weekday()<5 and (t.hour>9 or (t.hour==9 and t.minute>=30)) and t.hour<16)
+          if os.environ['GITHUB_EVENT_NAME'] == 'workflow_dispatch': enabled = True
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f: f.write(f"enabled={str(enabled).lower()}\n")
+          print('NY:',t.isoformat(timespec='seconds'),'Ejecutar:',enabled)
+          PY
+      - uses: actions/checkout@v4
+        if: steps.horario.outputs.enabled == 'true'
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        if: steps.horario.outputs.enabled == 'true'
+        with:
+          python-version: '3.11'
+      - name: Descargar Nasdaq y cotizaciones IEX (nunca operar)
+        if: steps.horario.outputs.enabled == 'true'
+        env:
+          ALPACA_API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
+          ALPACA_API_SECRET_KEY: ${{ secrets.ALPACA_API_SECRET_KEY }}
+        run: python actualizar_precios.py
+      - name: Publicar solo datos bursatiles sin claves
+        if: steps.horario.outputs.enabled == 'true'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/precios.json docs/lectura_rapida.md
+          if ! git diff --staged --quiet; then
+            git commit -m 'Actualizar cotizaciones IEX y cribado Nasdaq'
+            git pull --rebase
+            git push
+          fi
