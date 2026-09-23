@@ -33,6 +33,28 @@ class RadarTests(unittest.TestCase):
         parser.feed('<a href="https://fintual.cl/f/acciones/aapl/">Apple</a><a href="/f/acciones/voo/">ETF</a>')
         self.assertEqual(parser.symbols, {"AAPL", "VOO"})
 
+    def test_failed_catalog_does_not_claim_historical_symbols_as_verified(self):
+        with patch.object(radar, "get_bytes", side_effect=RuntimeError("unavailable")), \
+             patch.object(radar, "historical_symbols", return_value={"OLD"}):
+            catalog = radar.refresh_catalog(None, "2026-09-23")
+        self.assertFalse(catalog["directory_complete"])
+        self.assertFalse(catalog["fintual_evidence_current"])
+        self.assertEqual(catalog["fintual_verified"], [])
+        self.assertIsNone(catalog["directory_fetched_at_utc"])
+
+    def test_fintual_symbols_outside_directory_are_retained_with_distinct_evidence(self):
+        listed = {f"L{i}": {"symbol": f"L{i}", "exchange": "NASDAQ", "kind": "EQUITY_CANDIDATE"} for i in range(7000)}
+        html = "".join(f'<a href="https://fintual.cl/f/acciones/f{i}/">Stock</a>' for i in range(1500)).encode()
+        with patch.object(radar, "get_bytes", side_effect=[b"a", b"b", html]), \
+             patch.object(radar, "parse_directory", side_effect=[dict(list(listed.items())[:5000]), dict(list(listed.items())[5000:])]):
+            catalog = radar.refresh_catalog(None, "2026-09-23")
+        self.assertTrue(catalog["directory_complete"])
+        self.assertTrue(catalog["fintual_evidence_current"])
+        self.assertEqual(len(catalog["assets"]), 8500)
+        self.assertEqual(len(catalog["fintual_verified"]), 1500)
+        asset = next(row for row in catalog["assets"] if row["symbol"] == "F0")
+        self.assertEqual(asset["kind"], "FINTUAL_LINK_ONLY")
+
     def test_individual_time_freshness_and_opposite_movers(self):
         finished = dt.datetime(2026, 9, 23, 15, 20, 0, tzinfo=dt.timezone.utc)
         base = {"latestQuote": {"t": "2026-09-23T15:19:55Z", "bp": 10, "ap": 10.1},
