@@ -1,0 +1,95 @@
+import datetime as dt
+import json
+import os
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+
+import actualizar_precios as radar
+
+
+class RadarTests(unittest.TestCase):
+    def test_http_failure_is_safe_and_does_not_expose_url_credentials(self):
+        from urllib.error import HTTPError
+        with patch.object(radar, "urlopen", side_effect=HTTPError("https://example.test", 403, "Forbidden", {}, None)):
+            with self.assertRaisesRegex(RuntimeError, r"HTTPError \(403\)"):
+                radar.get_bytes("https://example.test?token=private")
+
+
+    def test_listed_stocks_and_etfs_with_public_fintual_links(self):
+        nasdaq = (b"Symbol|Security Name|Market Category|Test Issue|Financial Status|Round Lot Size|ETF|NextShares\n"
+                  b"AAPL|Apple Inc - Common Stock|Q|N|N|100|N|N\n"
+                  b"VOO|Vanguard S&P ETF|G|N|N|100|Y|N\n"
+                  b"TEST|Fake|G|Y|N|100|N|N\n"
+                  b"FOOW|Foo - Warrants|G|N|N|100|N|N\n")
+        other = (b"ACT Symbol|Security Name|Exchange|CQS Symbol|ETF|Round Lot Size|Test Issue|NASDAQ Symbol\n"
+                 b"GE|General Electric - Common Stock|N|GE|N|100|N|GE\n")
+        a = radar.parse_directory(nasdaq, "nasdaqlisted.txt")
+        b = radar.parse_directory(other, "otherlisted.txt")
+        self.assertEqual(set(a), {"AAPL", "VOO"})
+        self.assertEqual(b["GE"]["exchange"], "NYSE")
+        parser = radar.FintualLinks()
+        parser.feed('<a href="https://fintual.cl/f/acciones/aapl/">Apple</a><a href="/f/acciones/voo/">ETF</a>')
+        self.assertEqual(parser.symbols, {"AAPL", "VOO"})
+
+    def test_individual_time_freshness_and_opposite_movers(self):
+        finished = dt.datetime(2026, 9, 23, 15, 20, 0, tzinfo=dt.timezone.utc)
+        base = {"latestQuote": {"t": "2026-09-23T15:19:55Z", "bp": 10, "ap": 10.1},
+                "dailyBar": {"v": 3000}, "prevDailyBar": {"c": 10, "v": 2000}}
+        rising = radar.parse_snapshot("RISE", {**base, "latestTrade": {"p": 11, "t": "2026-09-23T15:19:59Z"}}, finished)
+        falling = radar.parse_snapshot("FALL", {**base, "latestTrade": {"p": 9, "t": "2026-09-23T15:19:58Z"}}, finished)
+        future = radar.parse_snapshot("FUTURE", {**base, "latestTrade": {"p": 100, "t": "2026-09-23T15:20:05Z"}}, finished)
+        stale = radar.parse_snapshot("STALE", {**base, "latestTrade": {"p": 100, "t": "2026-09-22T15:19:59Z"}}, finished)
+        self.assertEqual((rising["change_iex_pct"], falling["change_iex_pct"]), (10.0, -10.0))
+        self.assertIsNone(future["change_iex_pct"])
+        self.assertIsNone(stale["change_iex_pct"])
+        movers = radar.choose_movers({r["symbol"]: r for r in [rising, falling, future, stale]}, ["FUTURE"])
+        self.assertEqual(movers["gainers"], ["RISE"])
+        self.assertEqual(movers["losers"], ["FALL"])
+        self.assertIn("FUTURE", [r["symbol"] for r in movers["selected"]])
+        later = finished + dt.timedelta(minutes=4)
+        radar.finalize_freshness({"RISE": rising}, later)
+        self.assertIsNone(rising["change_iex_pct"])
+        self.assertFalse(rising["recent_quote_60sec"])
+
+    def test_public_has_no_market_data_private_preserves_consultable_history(self):
+        instant = dt.datetime(2026, 9, 23, 15, 20, 0, tzinfo=dt.timezone.utc)
+        quote = radar.parse_snapshot("AAPL", {
+            "latestTrade": {"p": 11, "t": "2026-09-23T15:19:59Z"},
+            "latestQuote": {"bp": 10.9, "ap": 11.1, "t": "2026-09-23T15:19:59Z"},
+            "dailyBar": {"v": 1000}, "prevDailyBar": {"c": 10, "v": 2000},
+        }, instant)
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "prioridad.txt").write_text("AAPL\n")
+            catalog = {"checked_on_ny": "2026-09-23", "directory_fetched_at_utc": radar.iso(instant),
+                       "assets": [{"symbol": "AAPL", "exchange": "NASDAQ", "kind": "EQUITY_CANDIDATE"}],
+                       "fintual_verified": ["AAPL"], "warnings": [], "sources": {}}
+            with patch.multiple(radar, ROOT=root, DOCS=root / "docs",
+                                CATALOG=root / "docs/catalogo.json",
+                                STATUS=root / "docs/estado.json",
+                                PRICES=root / "docs/precios.json"), \
+                 patch.object(radar, "now_utc", return_value=instant), \
+                 patch.object(radar, "refresh_catalog", return_value=catalog), \
+                 patch.object(radar, "fetch_snapshots", return_value=({"AAPL": quote}, [])), \
+                 patch.object(radar, "sec_filings", return_value=([], [])), \
+                 patch.dict(os.environ, {"ALPACA_API_KEY_ID": "synthetic", "ALPACA_API_SECRET_KEY": "synthetic",
+                                        "GITHUB_REPOSITORY_PRIVATE": "false"}):
+                self.assertEqual(radar.run(), 0)
+                public = (root / "docs/precios.json").read_text()
+                self.assertNotIn('"price_iex_usd"', public)
+                self.assertNotIn('"11"', public)
+                self.assertFalse((root / "history").exists())
+                os.environ["GITHUB_REPOSITORY_PRIVATE"] = "true"
+                self.assertEqual(radar.run(), 0)
+                self.assertEqual(radar.run(), 0)
+                private = json.loads((root / "docs/precios.json").read_text())
+                self.assertEqual(private["prices"][0]["price_iex_usd"], 11)
+                lines = (root / "history/2026-09-23.jsonl").read_text().splitlines()
+                self.assertEqual(len(lines), 2)
+                self.assertEqual(json.loads(lines[1])["prices"][0]["trade_utc"], "2026-09-23T15:19:59Z")
+
+
+if __name__ == "__main__":
+    unittest.main()
