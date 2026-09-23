@@ -15,6 +15,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
+import fuentes_primarias as primary
 
 ROOT = Path(__file__).resolve().parent
 DOCS = ROOT / "docs"
@@ -244,18 +245,25 @@ def sec_filings(symbols):
         index = {valid_symbol(v.get("ticker")): int(v["cik_str"]) for v in tickers.values() if valid_symbol(v.get("ticker"))}
     except (RuntimeError, ValueError, TypeError, KeyError) as exc:
         detail = str(exc) if isinstance(exc, RuntimeError) else type(exc).__name__
-        return [], [f"SEC ticker mapping unavailable: {detail}"]
-    found, warnings = [], []
+        index = {"AAPL": 320193, "MSFT": 789019, "NVDA": 1045810}
+        mapping_warning = f"SEC ticker mapping unavailable: {detail}; limited CIK seed fallback only"
+    else:
+        mapping_warning = None
+    found, warnings = [], [mapping_warning] if mapping_warning else []
     cutoff = now_utc() - dt.timedelta(days=2)
     for symbol in list(dict.fromkeys(symbols))[:12]:
         if not (cik := index.get(symbol)):
             continue
         try:
-            recent = get_json(f"https://data.sec.gov/submissions/CIK{cik:010d}.json", attempts=1, timeout=6)["filings"]["recent"]
+            submission = get_json(f"https://data.sec.gov/submissions/CIK{cik:010d}.json", attempts=1, timeout=6)
+            if symbol not in submission.get("tickers", []):
+                warnings.append(f"SEC ticker/CIK mismatch for {symbol}")
+                continue
+            recent = submission["filings"]["recent"]
             for form, accepted, accession, document in zip(
                 recent["form"], recent["acceptanceDateTime"], recent["accessionNumber"], recent["primaryDocument"]
             ):
-                if form not in {"8-K", "6-K", "10-Q", "10-K"}:
+                if form not in {"8-K", "6-K", "10-Q", "10-K", "S-1", "S-3", "424B5", "424B3", "F-3"}:
                     continue
                 when = parse_time(accepted)
                 if when is None:
@@ -282,7 +290,7 @@ def run():
     date = started.astimezone(NY).date().isoformat()
     catalog = refresh_catalog(load_catalog(), date)
     assets = {row["symbol"]: row for row in catalog["assets"]}
-    priority = priority_symbols()
+    priority = list(dict.fromkeys(priority_symbols() + list(primary.SECTORS)))
     symbols = [s for s in assets if s not in priority] + [s for s in priority if s in assets]
     key, secret = os.getenv("ALPACA_API_KEY_ID"), os.getenv("ALPACA_API_SECRET_KEY")
     warnings = list(catalog["warnings"])
@@ -298,11 +306,13 @@ def run():
     private = os.getenv("GITHUB_REPOSITORY_PRIVATE", "").lower() == "true"
     filings, filing_warnings = sec_filings([row["symbol"] for row in movers["selected"][:12]] if private else priority)
     warnings.extend(filing_warnings)
+    news = primary.collect(get_bytes, now_utc())
+    write_json(DOCS / "catalizadores.json", news)
     finished = now_utc()
     finalize_freshness(snapshots, finished)
     movers = choose_movers(snapshots, priority)
     status = {"generated_at_utc": iso(finished), "started_at_utc": iso(started),
-              "run_id": os.getenv("GITHUB_RUN_ID"), "event": os.getenv("GITHUB_EVENT_NAME", "local"),
+              "run_id": os.getenv("GITHUB_RUN_ID"), "cycle": os.getenv("RADAR_CYCLE", "1"), "event": os.getenv("GITHUB_EVENT_NAME", "local"),
               "duration_sec": round((finished - started).total_seconds(), 1),
               "market_feed": "Alpaca IEX; single venue, not consolidated SIP",
               "repository_private": private, "catalog_checked_on_ny": catalog["checked_on_ny"],
@@ -314,6 +324,10 @@ def run():
               "fintual_links_verified": len(catalog["fintual_verified"]),
               "fintual_account_tradability_verified": False,
               "sector_filter_applied": False, "sector_classification_complete": False,
+              "sector_proxies": [{"symbol": symbol, "sector": sector, "in_catalog": symbol in assets, "fintual_link_verified": symbol in catalog["fintual_verified"]} for symbol, sector in primary.SECTORS.items()],
+              "sector_classification_source": primary.SECTOR_SOURCE,
+              "sector_classification_scope": "11 sector ETF proxies only; individual equities remain unclassified",
+              "primary_news_sources": news["sources"],
               "scanned_symbols": len(symbols), "symbols_with_snapshot": len(snapshots),
               "symbols_with_recent_iex_trade": sum(row["recent_trade_150sec"] for row in snapshots.values()),
               "symbols_with_change": sum(row["change_iex_pct"] is not None for row in snapshots.values()),
@@ -334,7 +348,7 @@ def run():
         selected = [{**row, "exchange": assets.get(row["symbol"], {}).get("exchange"),
                      "kind": assets.get(row["symbol"], {}).get("kind"),
                      "fintual_public_link_verified": row["symbol"] in verified_set,
-                     "sector": "UNCLASSIFIED"} for row in movers["selected"]]
+                     "sector": primary.SECTORS.get(row["symbol"], "UNCLASSIFIED")} for row in movers["selected"]]
         report = {"generated_at_utc": iso(finished), "feed": status["market_feed"],
                   "catalog_size": len(symbols), "fintual_verified_count": len(catalog["fintual_verified"]),
                   "gainers": movers["gainers"], "losers": movers["losers"],
