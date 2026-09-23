@@ -1,4 +1,1 @@
-{
-  "status": "PUBLIC_NO_MARKET_DATA",
-  "reason": "La API Alpaca no permite redistribucion publica; ver docs/estado.json."
-}
+{"status":"PUBLIC_NO_MARKET_DATA","generated_at_utc":"2026-09-23T18:57:44Z","reason":"Alpaca API data cannot be redistributed from a public repository."}
