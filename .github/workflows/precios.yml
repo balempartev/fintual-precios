@@ -1,53 +1,83 @@
-name: Precios Fintual x Nasdaq x Alpaca (solo lectura)
+name: Radar Fintual (solo lectura)
 on:
   schedule:
-    # Cada 5 minutos, con guardia de horario exacto America/New_York en el siguiente paso.
-    - cron: '2-59/5 13-21 * * 1-5'
+    # Nueva York: 09:32, 09:37 ... 09:57; 10:02 ... 15:57.
+    # Evita el minuto :00, congestionado. La zona ajusta DST.
+    - cron: '32-59/5 9 * * 1-5'
+      timezone: America/New_York
+    - cron: '2-59/5 10-15 * * 1-5'
+      timezone: America/New_York
   workflow_dispatch:
+  push:
+    paths:
+      - 'actualizar_precios.py'
+      - 'tests/**'
+      - '.github/workflows/precios.yml'
 permissions:
   contents: write
 concurrency:
-  group: publicacion-cotizaciones
+  group: radar-fintual-publicacion
   cancel-in-progress: false
 jobs:
-  consultar:
+  radar:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - name: Verificar sesion regular NY
-        id: horario
-        shell: bash
-        run: |
-          python - <<'PY'
-          import datetime as d, os
-          from zoneinfo import ZoneInfo
-          t = d.datetime.now(ZoneInfo('America/New_York'))
-          enabled = (t.weekday()<5 and (t.hour>9 or (t.hour==9 and t.minute>=30)) and t.hour<16)
-          if os.environ['GITHUB_EVENT_NAME'] == 'workflow_dispatch': enabled = True
-          with open(os.environ['GITHUB_OUTPUT'],'a') as f: f.write(f"enabled={str(enabled).lower()}\n")
-          print('NY:',t.isoformat(timespec='seconds'),'Ejecutar:',enabled)
-          PY
       - uses: actions/checkout@v4
-        if: steps.horario.outputs.enabled == 'true'
         with:
           persist-credentials: true
       - uses: actions/setup-python@v5
-        if: steps.horario.outputs.enabled == 'true'
         with:
           python-version: '3.11'
-      - name: Descargar Nasdaq y cotizaciones IEX (nunca operar)
+      - name: Pruebas locales sin credenciales
+        run: python -m unittest discover -s tests -v
+      - name: Verificar sesión de NY
+        id: horario
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          ALPACA_API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
+          ALPACA_API_SECRET_KEY: ${{ secrets.ALPACA_API_SECRET_KEY }}
+        run: |
+          python - <<'PY'
+          import datetime as d, os
+          from urllib.request import Request, urlopen
+          from zoneinfo import ZoneInfo
+          t = d.datetime.now(ZoneInfo('America/New_York'))
+          regular = t.weekday() < 5 and ((t.hour == 9 and t.minute >= 30) or 10 <= t.hour < 16)
+          enabled = os.environ['EVENT_NAME'] == 'workflow_dispatch' or (os.environ['EVENT_NAME'] == 'schedule' and regular)
+          if enabled and os.environ['EVENT_NAME'] == 'schedule':
+              try:
+                  import json
+                  req = Request('https://paper-api.alpaca.markets/v2/clock', headers={
+                      'APCA-API-KEY-ID': os.environ['ALPACA_API_KEY_ID'],
+                      'APCA-API-SECRET-KEY': os.environ['ALPACA_API_SECRET_KEY']})
+                  with urlopen(req, timeout=12) as r:
+                      enabled = bool(json.load(r).get('is_open'))
+              except Exception as exc:
+                  print('Market clock unavailable:', type(exc).__name__)
+                  enabled = False  # Fail closed on uncertain holidays / early close.
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"enabled={str(enabled).lower()}\n")
+          print('NY', t.isoformat(timespec='seconds'), 'event', os.environ['EVENT_NAME'], 'scan', enabled)
+          PY
+      - name: Explorar universo y publicar estado
         if: steps.horario.outputs.enabled == 'true'
         env:
           ALPACA_API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
           ALPACA_API_SECRET_KEY: ${{ secrets.ALPACA_API_SECRET_KEY }}
+          GITHUB_REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
         run: python actualizar_precios.py
-      - name: Publicar solo datos bursatiles sin claves
-        if: steps.horario.outputs.enabled == 'true'
+      - name: Persistir auditoría y, solo en privado, historial
+        if: always() && steps.horario.outputs.enabled == 'true'
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add docs/precios.json docs/lectura_rapida.md
-          if ! git diff --staged --quiet; then
-            git commit -m 'Actualizar cotizaciones IEX y cribado Nasdaq'
+          git add docs/
+          if [ "${{ github.event.repository.private }}" = "true" ] && [ -d history ]; then
+            git add history/
+          fi
+          if ! git diff --cached --quiet; then
+            git commit -m 'Actualizar auditoría Radar Fintual'
             git pull --rebase
             git push
           fi
