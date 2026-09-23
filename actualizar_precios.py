@@ -125,7 +125,7 @@ def load_catalog():
 
 
 def refresh_catalog(cached, date):
-    if cached and cached.get("checked_on_ny") == date and cached.get("directory_complete") and cached.get("fintual_evidence_current"):
+    if cached and cached.get("schema_version") == 2 and cached.get("checked_on_ny") == date and cached.get("directory_complete") and cached.get("fintual_evidence_current"):
         return cached
     sources, warnings, assets = {}, [], {}
     for url in NASDAQ_FILES:
@@ -138,7 +138,7 @@ def refresh_catalog(cached, date):
             assets.update(rows)
         except (RuntimeError, ValueError, UnicodeError) as exc:
             warnings.append(f"Directory {name}: {type(exc).__name__}")
-    directory_complete = len(sources) == 2
+    directory_complete = len(sources) == 2 and len(assets) >= 6000
     if not directory_complete or len(assets) < 6000:
         if cached and len(cached["assets"]) >= 6000:
             return {**cached, "warnings": warnings + ["Retained previous complete directory."]}
@@ -156,8 +156,9 @@ def refresh_catalog(cached, date):
         verified = set(cached.get("fintual_verified", [])) if cached else set()
         fintual_current = False
         warnings.append(f"Fintual links: {type(exc).__name__}; previous evidence retained.")
-    verified &= assets.keys()
-    return {"checked_on_ny": date, "directory_complete": directory_complete,
+    for symbol in verified - assets.keys():
+        assets[symbol] = {"symbol": symbol, "exchange": "NOT_IN_CURRENT_DIRECTORY", "kind": "FINTUAL_LINK_ONLY"}
+    return {"schema_version": 2, "checked_on_ny": date, "directory_complete": directory_complete,
             "fintual_evidence_current": fintual_current,
             "directory_fetched_at_utc": iso(now_utc()) if directory_complete else (cached or {}).get("directory_fetched_at_utc"),
             "fintual_source": FINTUAL, "sources": sources, "warnings": warnings,
@@ -241,8 +242,9 @@ def sec_filings(symbols):
     try:
         tickers = get_json(SEC_TICKERS, attempts=1, timeout=6)
         index = {valid_symbol(v.get("ticker")): int(v["cik_str"]) for v in tickers.values() if valid_symbol(v.get("ticker"))}
-    except (RuntimeError, ValueError, TypeError, KeyError):
-        return [], ["SEC ticker mapping unavailable"]
+    except (RuntimeError, ValueError, TypeError, KeyError) as exc:
+        detail = str(exc) if isinstance(exc, RuntimeError) else type(exc).__name__
+        return [], [f"SEC ticker mapping unavailable: {detail}"]
     found, warnings = [], []
     cutoff = now_utc() - dt.timedelta(days=2)
     for symbol in list(dict.fromkeys(symbols))[:12]:
@@ -307,7 +309,9 @@ def run():
               "directory_complete": catalog.get("directory_complete", False),
               "fintual_evidence_current": catalog.get("fintual_evidence_current", False),
               "catalog_directory_fetched_at_utc": catalog.get("directory_fetched_at_utc"),
-              "listed_candidates": len(symbols), "fintual_links_verified": len(catalog["fintual_verified"]),
+              "listed_candidates": sum(row["exchange"] not in {"NOT_IN_CURRENT_DIRECTORY", "UNKNOWN"} for row in assets.values()),
+              "fintual_links_outside_directory": sum(row["exchange"] == "NOT_IN_CURRENT_DIRECTORY" for row in assets.values()),
+              "fintual_links_verified": len(catalog["fintual_verified"]),
               "fintual_account_tradability_verified": False,
               "sector_filter_applied": False, "sector_classification_complete": False,
               "scanned_symbols": len(symbols), "symbols_with_snapshot": len(snapshots),
