@@ -135,7 +135,7 @@ def extract_snapshots(payload, requested, now):
     return result
 
 
-def fetch_alpaca(symbols, key, secret, now):
+def fetch_alpaca(symbols, key, secret):
     data = {}
     headers = {'APCA-API-KEY-ID': key, 'APCA-API-SECRET-KEY': secret}
     failures=[]
@@ -148,7 +148,7 @@ def fetch_alpaca(symbols, key, secret, now):
         except RuntimeError as exc:
             failures.append(f'Lote {start//35+1}: {exc}')
         if start + 35 < len(symbols): time.sleep(.5)
-    return extract_snapshots(data, symbols, now), failures
+    return extract_snapshots(data, symbols, utcnow()), failures
 
 
 def render_markdown(report):
@@ -206,7 +206,7 @@ def main():
         nerror=f'Nasdaq no disponible: {type(exc).__name__}'
         nasdaq_rows=[]
     chosen, overlap, screened=pick_symbols(nasdaq_rows, universe, priority)
-    quotes, qerrors=fetch_alpaca(chosen,key,secret,now)
+    quotes, qerrors=fetch_alpaca(chosen,key,secret)
     recent=sum(bool(x['recent_trade_120sec'] and x['recent_quote_60sec']) for x in quotes)
     quote_rows=sum(bool(x['last_trade_utc'] or x['last_quote_utc']) for x in quotes)
     warnings=[]
