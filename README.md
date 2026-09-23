@@ -1,25 +1,52 @@
-# Fintual × Nasdaq × Alpaca · actualización automática
+# Radar Fintual autónomo
 
-Este repositorio contiene SOLO listas históricas de símbolos, código y precios bursátiles públicos. **Nunca publiques tus claves, contraseñas, nombres, saldo ni operaciones personales.**
+Explora acciones y ETF estadounidenses en modo de **solo lectura**. No tiene funciones para operar, leer saldos, ni gestionar posiciones. Se ejecuta aproximadamente cada cinco minutos durante la sesión ordinaria de Nueva York; GitHub Actions puede retrasar o descartar ejecuciones.
 
-## Configuración en GitHub
+## Qué puede comprobar
 
-1. Crea un repositorio público vacío llamado `fintual-precios`.
-2. Descomprime el ZIP y sube `actualizar_precios.py`, `universo_fintual_publico.csv`, `prioridad.txt`, `.gitignore` y `README.md` a la raíz del repositorio.
-3. Sube `.github/workflows/precios.yml` respetando EXACTAMENTE esa ruta. En GitHub: `Add file` → `Create new file` y escribe `.github/workflows/precios.yml` como nombre, luego pega el contenido del archivo local. Si la carga de carpetas funciona desde el navegador, también puedes subir directamente toda la carpeta `.github`.
-4. Dentro del repositorio: **Settings → Secrets and variables → Actions → New repository secret**. Crea ambos secretos `ALPACA_API_KEY_ID` y `ALPACA_API_SECRET_KEY`, pegando en GitHub las credenciales de *Paper Trading* que ya tienes en Colab. No compartas sus valores en ChatGPT ni en código.
-5. Abre **Actions → Precios Fintual x Nasdaq x Alpaca → Run workflow** y espera a que la ejecución termine en verde. Si aparece error de permisos para publicar: **Settings → Actions → General → Workflow permissions → Read and write permissions**. Si aparece error de claves, comprueba nombres y secretos sin compartirlos.
-6. Comprueba que existan `docs/precios.json` y `docs/lectura_rapida.md` con `generated_at_utc` reciente. La URL pública será `https://raw.githubusercontent.com/TU_USUARIO/fintual-precios/main/docs/precios.json` si creaste `main` como rama principal.
-7. Comparte AQUÍ SOLAMENTE la dirección pública del repositorio. ChatGPT puede intentar leer `docs/lectura_rapida.md` y `docs/precios.json` durante cada informe horario y, una vez comprobado el acceso, actualizar el texto de la automatización que ya tienes. No hace falta compartir claves ni conectar ninguna cuenta personal a ChatGPT.
+1. [Fintual informa más de 11.000 activos](https://ayuda.fintual.cl/es/articles/8592794-todas-las-acciones-etfs-disponibles-en-fintual) desde la ampliación de 2026. Su lista de enlaces individuales es una prueba pública para un subconjunto, pero ni esa lista ni un ticker listado demuestran que la cuenta de un usuario pueda operarlo. No se inicia sesión en Fintual.
+2. Los archivos oficiales [Nasdaq Listed y Other Listed](https://www.nasdaqtrader.com/Trader.aspx?id=SymbolDirDefs) proporcionan candidatos de varias bolsas, con la marca ETF. Se descartan instrumentos que se puedan reconocer como derechos, warrants, unidades, preferentes, bonos y notas. Los restantes no son necesariamente todos instrumentos elegibles en Fintual. Se recorren todos los candidatos, sin filtrar industrias o sectores. Estas fuentes no incluyen una taxonomía sectorial completa: `sector_classification_complete=false` y los destacados aparecen como `UNCLASSIFIED` hasta contar con una fuente comprobable.
+3. El plan Basic de [Alpaca](https://docs.alpaca.markets/us/docs/about-market-data-api) ofrece datos IEX gratis y hasta 200 llamadas por minuto. IEX es **una sola bolsa**, no precio, spread ni volumen consolidado de todas las bolsas. Cada operación y cotización lleva su propia hora. La búsqueda de alzas y bajas usa la última operación IEX con menos de 150 segundos respecto de la publicación y el cierre anterior del mismo feed. La actividad anormal es solo un indicador aproximado: volumen IEX acumulado dividido por el volumen IEX del día anterior, ajustado por la fracción transcurrida de la sesión; no es un RVOL de veinte días ni una señal de liquidez global.
+4. Para hasta doce símbolos destacados se buscan presentaciones recientes en [SEC EDGAR](https://www.sec.gov/about/developer-resources): formularios 8-K, 6-K, 10-Q y 10-K, con enlaces a los documentos primarios. Un documento reciente **no prueba** que explique un movimiento. No hay cobertura exhaustiva de comunicados de prensa, noticias sectoriales ni ETF.
 
-## Qué hace realmente
+## Publicación y licencia
 
-- Ejecuta cada 5 minutos durante el horario regular 09:30–15:59 de Nueva York (ajuste DST por `zoneinfo`). GitHub Actions puede retrasarse, no garantiza intervalos exactos; durante festivos sigue lanzándose pero no hay operaciones recientes y la frescura se marca como antigua.
-- En cada ejecución intenta descargar el JSON masivo público de Nasdaq. **Si falla, aún consulta la lista prioritaria de acciones usando Alpaca.**
-- Cruza los símbolos con una copia **histórica parcial** del listado público Fintual extraída del ZIP del 22 de septiembre. No demuestra cobertura de los >11.000 activos ni disponibilidad en tu contrato.
-- Consulta a Alpaca SOLO endpoints de DATOS de mercado (`data.alpaca.markets`), con `feed=iex`. No hay órdenes de compra ni venta.
-- Publica hora exacta de cada trade/quote, diferencia bid-ask IEX y antigüedad en segundos. Si una cotización carece de hora, NO la considera reciente.
-- `OK_PARCIAL_RESEARCH_ONLY` **no significa que un ticker sea comprable**. Tampoco demuestra spread NBBO consolidado ni acceso real en tu app.
-- Mecanismo de entrega a ChatGPT: archivo público que una revisión **puede consultar al ejecutarse**; no es un conector de transmisión continua, ni garantiza que cada ejecución de ChatGPT consiga leer GitHub. Un archivo antiguo se considera OBSOLETO.
+[Alpaca dice expresamente que sus datos de API no pueden redistribuirse](https://alpaca.markets/support/redistribute-alpaca-api). Este repositorio nació **público**. Mientras siga público:
 
-Si estás usando un ordenador público, no pegues claves allí. Después de haber mostrado credenciales en capturas, usa las rotadas y nunca las reveles de nuevo.
+- `docs/audit/AAAA-MM-DD.jsonl`: historial operativo por ejecución (sin cotizaciones), con identificador del run y disparador.
+- [docs/estado.json](docs/estado.json): hora de ejecución, conteos de cobertura, fallos por lote, advertencias y enlaces SEC; sin precios, porcentajes, volumen ni ranking de símbolos derivados de cotizaciones.
+- [docs/catalogo.json](docs/catalogo.json): ticker, bolsa, tipo y enlaces verificados de Fintual obtenidos de páginas públicas, con fecha y advertencias.
+- [docs/precios.json](docs/precios.json): marca explícita de que los datos de mercado no se publican.
+- [docs/lectura_rapida.md](docs/lectura_rapida.md): lectura breve del estado, sin cotizaciones.
+
+Estas rutas son accesibles a informes independientes. Consulta la hora y los fallos antes de describir un dato como actual. URL de estado: https://raw.githubusercontent.com/balempartev/fintual-precios/main/docs/estado.json .
+
+El código tiene un modo privado: **solo si GitHub indica que el repositorio es privado**, [docs/precios.json](docs/precios.json) muestra los destacados y sus horas individuales, y `history/AAAA-MM-DD.jsonl` conserva una línea por ejecución con esos destacados. El historial guarda los mejores candidatos y símbolos prioritarios, **no todos los miles de snapshots en cada ciclo**. El tamaño queda acotado. No cambies el indicador de visibilidad en un archivo: procede del evento de GitHub. La transición a privado exige comprobar cómo accederán los informes horarios; las URL públicas dejarían de servir.
+
+Los commits históricos anteriores a este cambio contenían cotizaciones IEX. Quitar los archivos del commit actual no borra los commits anteriores. Un saneamiento total exigiría reescribir la historia y coordinar los consumidores; no se fuerza aquí.
+
+## Horarios, errores y operación
+
+El cron usa `America/New_York`: 09:32, 09:37 ... 09:57; 10:02, 10:07 ... 15:57, de lunes a viernes. Antes de consultar, una solicitud **GET** al reloj de mercado de Alpaca confirma que la sesión está abierta, incluidos feriados y cierres anticipados. Si falla el reloj, no se consulta el mercado. `workflow_dispatch` permite una prueba manual incluso fuera de horario. `push` ejecuta pruebas locales sin explorar el mercado.
+
+El escaneo divide el universo en lotes de 75 y refresca al final los candidatos destacados. El catálogo se comprueba una vez por fecha NY si las tres fuentes responden; los fallos se reintentan; si fallan las fuentes se conserva el último catálogo completo, o se recurre a la base histórica parcial de 2.090 símbolos, **marcando cobertura incompleta**. Si un lote falla se registra `batch_start` y `error`; una ejecución sin ningún snapshot devuelve error y no finge precios recientes. Los archivos de estado se actualizan al terminar una consulta; las edades se vuelven a calcular antes de publicar.
+
+GitHub admite un intervalo mínimo de cinco minutos, pero [advierte retrasos, ejecuciones omitidas y desactivación tras 60 días sin actividad en repositorios públicos](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule). El flujo dura como máximo cinco minutos. No se envían alertas ni se gestionan las notificaciones horarias del usuario.
+
+Secretos ya utilizados por el flujo: `ALPACA_API_KEY_ID` y `ALPACA_API_SECRET_KEY`. No se muestran ni se guardan sus valores. Los únicos destinos de las credenciales son las consultas GET de datos IEX y el reloj de mercado paper. El código usa biblioteca estándar Python 3.11; las pruebas no requieren red:
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+## Opciones estudiadas
+
+| Fuente / arquitectura | Alcance sin contratar | Limitación que importa | Decisión |
+|---|---|---|---|
+| [Alpaca Basic](https://docs.alpaca.markets/us/docs/about-market-data-api) + Actions | IEX en tiempo real, lotes de snapshots y 200 solicitudes/min | Cobertura y volumen solo IEX; prohíbe redistribución pública | Escaneo interno; precios e historial solo con repositorio privado |
+| [Massive Basic](https://massive.com/pricing) | Todas las bolsas, fin del día, cinco solicitudes/min | Sin snapshots intradía gratis; servicio y cuenta adicionales | No contratar ni depender de ello |
+| Nasdaq Screener web | Puede mostrar cambios amplios | Falló en las ejecuciones anteriores, a veces no aporta `asOf`; no es API pública confiable para este fin | Sustituido por directorios oficiales **solo para símbolos** |
+| Nasdaq Symbol Directory + SEC EDGAR | Listados y documentos primarios públicos | No son cotizaciones ni verifican la cuenta Fintual | Catálogo, cobertura y vínculos a documentos |
+| GitHub Actions + archivos versionados | Infraestructura ya existente, historial consultable | Cron aproximado y crecimiento del historial; repositorio público incompatible con publicar API prices | Se conserva, con barrera de privacidad automática |
+
+**Verificación de producción:** [docs/VERIFICACION.md](docs/VERIFICACION.md) reúne las cuatro ejecuciones previas observables, sus fallos de periodicidad y los criterios pendientes para probar el nuevo radar. Los tests locales comprueban lógica y bloqueo de publicación; no sustituyen dos ejecuciones automáticas consecutivas.
