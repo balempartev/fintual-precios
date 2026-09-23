@@ -1,32 +1,32 @@
 # Fintual × Nasdaq × Alpaca: actualización automática
 
-**Extracción (UTC):** 2026-09-23T14:47:45Z
-**Hora NY:** 2026-09-23T10:47:45-04:00
-**Estado:** INCOMPLETE_NO_TRADE
+**Extracción (UTC):** 2026-09-23T15:21:37Z
+**Hora NY:** 2026-09-23T11:21:37-04:00
+**Estado:** OK_PARCIAL_RESEARCH_ONLY
 
 **Alcance real de esta ejecución:**
 - Base pública histórica Fintual (símbolos): 2090; NO prueba disponibilidad en la app.
 - Filas Nasdaq descargadas: NO VERIFICABLE; frescura Nasdaq NO VERIFICABLE cuando asOf=null.
 - Coincidencias Nasdaq-base Fintual: NO VERIFICABLE.
-- Símbolos IEX solicitados: 15; con operación y cotización recientes: 0. IEX no es SIP consolidado.
+- Símbolos IEX solicitados: 15; con operación y cotización recientes: 12. IEX no es SIP consolidado.
 
 | Ticker | Último IEX USD | Hora operación UTC | Edad seg. | Bid | Ask | Spread IEX | Dato reciente |
 |---|---:|---|---:|---:|---:|---:|---|
-| NVDA | 225.920 | 2026-09-23T14:48:32Z | -46.800 | 225.920 | 225.940 | 0.009 | NO |
-| VKTX | 38.940 | 2026-09-23T14:48:35Z | -49.500 | 38.500 | 41.210 | 6.800 | NO |
-| GRAL | 108.515 | 2026-09-22T19:59:56Z | 67669.400 | 92.570 | 0.000 | — | NO |
-| VICR | 267.480 | 2026-09-23T14:48:19Z | -33.500 | 253.350 | 267.990 | 5.616 | NO |
-| FLNA | 0.851 | 2026-09-23T14:39:04Z | 520.800 | 0.732 | 0.975 | 28.404 | NO |
-| CMPX | 1.155 | 2026-09-23T14:48:03Z | -18.100 | 1.150 | 1.160 | 0.866 | NO |
-| GME | 24.225 | 2026-09-23T14:48:33Z | -47.800 | 24.220 | 24.230 | 0.041 | NO |
-| GEV | 944.640 | 2026-09-23T14:47:53Z | -8.100 | 895.660 | 997.500 | 10.759 | NO |
-| AAPL | 337.840 | 2026-09-23T14:48:34Z | -49.400 | 337.840 | 337.900 | 0.018 | NO |
-| MSFT | 499.415 | 2026-09-23T14:48:26Z | -40.600 | 499.240 | 499.540 | 0.060 | NO |
-| AMZN | 249.635 | 2026-09-23T14:48:21Z | -36.200 | 249.540 | 249.590 | 0.020 | NO |
-| TSLA | 379.330 | 2026-09-23T14:48:31Z | -46.400 | 379.090 | 385.750 | 1.742 | NO |
-| AMD | 610.650 | 2026-09-23T14:48:27Z | -42.100 | 610.670 | 613.130 | 0.402 | NO |
-| AVGO | 355.260 | 2026-09-23T14:48:34Z | -48.500 | 354.920 | 355.540 | 0.175 | NO |
-| MU | 1075.740 | 2026-09-23T14:48:29Z | -44.200 | 1071.000 | 1078.200 | 0.670 | NO |
+| NVDA | 225.610 | 2026-09-23T15:22:22Z | 4.400 | 225.620 | 225.640 | 0.009 | SÍ |
+| VKTX | 41.910 | 2026-09-23T15:21:56Z | 30.300 | 39.900 | 42.250 | 5.721 | SÍ |
+| GRAL | 108.515 | 2026-09-22T19:59:56Z | 69751.100 | 92.570 | 0.000 | — | NO |
+| VICR | 275.225 | 2026-09-23T15:16:17Z | 369.900 | 275.010 | 279.120 | 1.483 | NO |
+| FLNA | 0.875 | 2026-09-23T15:11:45Z | 642.100 | 0.750 | 0.992 | 27.764 | NO |
+| CMPX | 1.175 | 2026-09-23T15:21:56Z | 31.100 | 1.170 | 1.180 | 0.851 | SÍ |
+| GME | 24.445 | 2026-09-23T15:22:15Z | 11.400 | 24.430 | 24.450 | 0.082 | SÍ |
+| GEV | 951.965 | 2026-09-23T15:22:13Z | 13.800 | 895.660 | 997.500 | 10.759 | SÍ |
+| AAPL | 337.570 | 2026-09-23T15:22:19Z | 8.200 | 337.370 | 337.570 | 0.059 | SÍ |
+| MSFT | 498.025 | 2026-09-23T15:22:26Z | 0.900 | 497.800 | 498.320 | 0.104 | SÍ |
+| AMZN | 250.640 | 2026-09-23T15:22:14Z | 12.600 | 250.540 | 250.660 | 0.048 | SÍ |
+| TSLA | 381.150 | 2026-09-23T15:22:18Z | 9.200 | 380.730 | 382.640 | 0.500 | SÍ |
+| AMD | 615.725 | 2026-09-23T15:22:11Z | 15.800 | 615.630 | 619.050 | 0.554 | SÍ |
+| AVGO | 357.150 | 2026-09-23T15:22:26Z | 0.800 | 354.380 | 358.790 | 1.237 | SÍ |
+| MU | 1082.235 | 2026-09-23T15:22:21Z | 5.400 | 1072.000 | 1084.300 | 1.141 | SÍ |
 
 > **NO SON ÓRDENES DE COMPRA.** Solo una bolsa (IEX), no precios consolidados. No usar un spread IEX aislado como spread del mercado.
 > Ninguna coincidencia pública demuestra que la acción esté habilitada en el contrato personal de Fintual.
