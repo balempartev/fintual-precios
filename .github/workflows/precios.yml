@@ -2,7 +2,7 @@ name: Precios Fintual x Nasdaq x Alpaca (solo lectura)
 on:
   schedule:
     # Cada 5 minutos, con guardia de horario exacto America/New_York en el siguiente paso.
-    - cron: '*/5 13-21 * * 1-5'
+    - cron: '2-59/5 13-21 * * 1-5'
   workflow_dispatch:
 permissions:
   contents: write
