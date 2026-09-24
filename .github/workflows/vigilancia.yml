@@ -16,7 +16,7 @@ permissions:
   actions: write
   issues: write
 concurrency:
-  group: radar-fintual-vigilancia
+  group: radar-fintual-publicacion
   cancel-in-progress: false
 jobs:
   vigilar:
