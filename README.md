@@ -1,6 +1,6 @@
 # Radar Fintual autónomo
 
-Explora acciones y ETF estadounidenses en modo de **solo lectura**. No tiene funciones para operar, leer saldos, ni gestionar posiciones. Se ejecuta aproximadamente cada cinco minutos durante la sesión ordinaria de Nueva York; GitHub Actions puede retrasar o descartar ejecuciones.
+Explora acciones y ETF estadounidenses en modo de **solo lectura**. No tiene funciones para operar, leer saldos, ni gestionar posiciones. Está programado para intentar capturas cada cinco minutos durante la sesión ordinaria de Nueva York. La periodicidad intradía aún debe superar la prueba automática de apertura; GitHub Actions puede retrasar o descartar ejecuciones.
 
 ## Qué puede comprobar
 
@@ -27,11 +27,11 @@ Los commits históricos anteriores a este cambio contenían cotizaciones IEX. Qu
 
 ## Horarios, errores y operación
 
-El cron usa `America/New_York`: 09:32, 09:37 ... 09:57; 10:02, 10:07 ... 15:57, de lunes a viernes. Antes de consultar, una solicitud **GET** al reloj de mercado de Alpaca confirma que la sesión está abierta, incluidos feriados y cierres anticipados. Si falla el reloj, no se consulta el mercado. `workflow_dispatch` permite una prueba manual incluso fuera de horario. `push` ejecuta pruebas locales sin explorar el mercado.
+El cron usa una ventana UTC 13:02–20:57, cada cinco minutos, que cubre ambos regímenes DST; el guard usa `America/New_York` y el reloj de mercado. Durante sesión ordinaria corresponde a NY09:32,09:37…15:57. Antes de consultar, una solicitud **GET** al reloj de mercado de Alpaca confirma que la sesión está abierta, incluidos feriados y cierres anticipados. Si falla el reloj, no se consulta el mercado. `workflow_dispatch` permite una prueba manual incluso fuera de horario. `push` ejecuta pruebas locales sin explorar el mercado.
 
 El escaneo divide el universo en lotes de 75 y refresca al final los candidatos destacados. El catálogo se comprueba una vez por fecha NY si las tres fuentes responden; los fallos se reintentan; si fallan las fuentes se conserva el último catálogo completo, o se recurre a la base histórica parcial de 2.090 símbolos, **marcando cobertura incompleta**. Si un lote falla se registra `batch_start` y `error`; una ejecución sin ningún snapshot devuelve error y no finge precios recientes. Los archivos de estado se actualizan al terminar una consulta; las edades se vuelven a calcular antes de publicar.
 
-GitHub admite un intervalo mínimo de cinco minutos, pero [advierte retrasos, ejecuciones omitidas y desactivación tras 60 días sin actividad en repositorios públicos](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule). El flujo dura como máximo cinco minutos. No se envían alertas ni se gestionan las notificaciones horarias del usuario.
+GitHub admite un intervalo mínimo de cinco minutos, pero [advierte retrasos, ejecuciones omitidas y desactivación tras 60 días sin actividad en repositorios públicos](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule). Cada consulta tiene un límite de cuatro minutos. El flujo admite una prueba controlada `validation_cycles=3` con tres ciclos que arrancan cada 300 segundos y persisten separadamente; su límite total es dieciséis minutos. Los eventos `schedule` ejecutan un solo ciclo. Una prueba de tres ciclos iniciada manualmente **no** demuestra puntualidad del cron. Un segundo workflow de vigilancia comprueba frescura cada diez minutos, solicita hasta dos recuperaciones diarias y abre incidencias técnicas. Comparte GitHub: no protege ante una caída total de GitHub ni confirma publicaciones o push de Tasks.
 
 Secretos ya utilizados por el flujo: `ALPACA_API_KEY_ID` y `ALPACA_API_SECRET_KEY`. No se muestran ni se guardan sus valores. Los únicos destinos de las credenciales son las consultas GET de datos IEX y el reloj de mercado paper. El código usa biblioteca estándar Python 3.11; las pruebas no requieren red:
 
@@ -53,4 +53,17 @@ python -m unittest discover -s tests -v
 | Nasdaq Symbol Directory + SEC EDGAR | Listados y documentos primarios públicos | No son cotizaciones ni verifican la cuenta Fintual | Catálogo, cobertura y vínculos a documentos |
 | GitHub Actions + archivos versionados | Infraestructura ya existente, historial consultable | Cron aproximado y crecimiento del historial; repositorio público incompatible con publicar API prices | Se conserva, con barrera de privacidad automática |
 
-**Verificación de producción:** [docs/VERIFICACION.md](docs/VERIFICACION.md) reúne las cuatro ejecuciones previas observables, sus fallos de periodicidad y los criterios pendientes para probar el nuevo radar. Los tests locales comprueban lógica y bloqueo de publicación; no sustituyen dos ejecuciones automáticas consecutivas.
+**Verificación de producción:** [docs/PRUEBAS.md](docs/PRUEBAS.md) reúne las evidencias de la sesión actual; [docs/VERIFICACION.md](docs/VERIFICACION.md) conserva la auditoría histórica. Los tests locales comprueban lógica y bloqueo de publicación; no sustituyen ejecuciones automáticas consecutivas.
+
+## Ampliación V5 nocturna
+
+- `fuentes_primarias.py`: RSS oficiales FDA y Federal Reserve, con URL, fecha de publicación cuando existe, fecha de consulta y errores. Archivo público `docs/catalizadores.json`. No implica que cada noticia explique un movimiento. SEC añade formularios de financiación y consulta documentada de CIK de tres emisores si falla el mapa; comprueba el ticker devuelto. No es cobertura exhaustiva de IR.
+- Once ETF de referencia sectorial se cruzan con catálogo y Fintual. Las acciones individuales permanecen sin taxonomía completa.
+- `vigilancia.py` y `.github/workflows/vigilancia.yml`: comprobación independiente del job de captura, dos reintentos máximos por fecha NY separados al menos diez minutos, incidencias idempotentes y conservación del estado. No usa créditos de Work.
+- Aceptación diaria de apertura: exige tres `run_id` diferentes con evento `schedule`, arranques NY09:30–09:50, intervalos180–420s, >=80% snapshots, alguna operación individual reciente y ningún lote fallido. Tres ciclos manuales no sirven como prueba de cron.
+- Mantiene `docs/vigilancia.json`, `docs/vigilancia/AAAA-MM-DD.jsonl` y `docs/recovery_state.json`. Los avisos por incidencia solo prueban recepción cuando hay evidencia fuera de GitHub.
+- El formulario privado vive en un servicio separado; sus datos y configuraciones privadas de Tasks no se guardan en este repositorio público.
+
+Documentación detallada: [arquitectura](docs/ARQUITECTURA.md), [operación](docs/RUNBOOK.md), [contrato](docs/CONTRATO_DATOS.md), [pruebas](docs/PRUEBAS.md).
+
+**Primeras pruebas del 24/09:** [run de `push` con 11 tests](https://github.com/balempartev/fintual-precios/actions/runs/36006388282); [captura manual de mercado](https://github.com/balempartev/fintual-precios/actions/runs/36006946546) a las 13:38:55 UTC, con 11.868 snapshots IEX y 2.134 símbolos con operación IEX reciente en ese instante; [vigilante manual](https://github.com/balempartev/fintual-precios/actions/runs/36007268625) con estado sano e incidencia de prueba. Estos tres eventos no son evidencia de capturas `schedule` puntuales: consulta [vigilancia viva](docs/vigilancia.json) y [estado vivo](docs/estado.json) para la aceptación real.
