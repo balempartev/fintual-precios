@@ -7,9 +7,16 @@ import unittest
 from unittest.mock import patch
 
 import actualizar_precios as radar
+import ejecutar_radar
 
 
 class RadarTests(unittest.TestCase):
+    def test_scheduled_collector_stops_on_closed_market(self):
+        with patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'schedule'}), \
+             patch.object(ejecutar_radar, 'scheduled_market_open', return_value=False), \
+             patch.object(ejecutar_radar, 'command') as command:
+            self.assertEqual(ejecutar_radar.main(), 0)
+        command.assert_not_called()
     def test_real_fintual_labels_are_multivalued_and_only_for_verified_symbols(self):
         page = ('<h3>Otra sección</h3><p>Falsa</p><h3>Etiquetas</h3>'
                 '<div class="AssetTagChip_root__new"><p>🔬</p><p>Biotecnología</p></div>'

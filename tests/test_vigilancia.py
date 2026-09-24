@@ -41,11 +41,14 @@ class AcceptanceTests(unittest.TestCase):
  def test_three_distinct_schedule_events_pass(self):
   r=evaluate(self.rows(),dt.datetime(2026,9,24,13,55,tzinfo=UTC),True)
   self.assertEqual(r['opening_acceptance'],'PASSED')
+  rows=self.rows()
+  for index,row in enumerate(rows):row['run_id']='one_scheduled_run';row['cycle']=str(index+1)
+  self.assertEqual(evaluate(rows,dt.datetime(2026,9,24,13,55,tzinfo=UTC),True)['opening_acceptance'],'PASSED')
  def test_manual_cycles_and_repeated_run_never_count_as_scheduler_proof(self):
   for mode in ['workflow_dispatch','same_run']:
    rows=self.rows()
    for r in rows:
-    if mode=='same_run':r['run_id']='same'
+    if mode=='same_run':r['run_id']='same';r['cycle']='1'
     else:r['event']=mode
    self.assertEqual(evaluate(rows,dt.datetime(2026,9,24,13,55,tzinfo=UTC),True)['opening_acceptance'],'FAILED')
  def test_stale_capture_detected_independent_of_collector(self):
