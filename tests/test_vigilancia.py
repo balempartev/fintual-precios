@@ -7,10 +7,24 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import vigilancia
+from ejecutar_radar import reconcile
 from vigilancia import evaluate
 from fuentes_primarias import parse_feed
 UTC=dt.timezone.utc
 class AcceptanceTests(unittest.TestCase):
+ def test_concurrent_publication_preserves_ledger_and_newer_status(self):
+  remote=b'{"run_id":"a"}\n{"run_id":"b"}\n'
+  produced=b'{"run_id":"a"}\n{"run_id":"c"}\n'
+  self.assertEqual(reconcile('docs/audit/2026-09-24.jsonl',remote,produced),b'{"run_id":"a"}\n{"run_id":"b"}\n{"run_id":"c"}\n')
+  newer=b'{"generated_at_utc":"2026-09-24T18:00:00Z","run_id":"b"}'
+  older=b'{"generated_at_utc":"2026-09-24T17:55:00Z","run_id":"a"}'
+  self.assertEqual(reconcile('docs/estado.json',newer,older),newer)
+  state_old=json.dumps({'date':'2026-09-24','attempts':2,'failure_signaled':True,'incident_number':9}).encode()
+  state_new=json.dumps({'date':'2026-09-24','attempts':1,'recovery_notified':True}).encode()
+  merged=json.loads(reconcile('docs/recovery_state.json',state_old,state_new))
+  self.assertEqual(merged['attempts'],2)
+  self.assertEqual(merged['incident_number'],9)
+  self.assertTrue(merged['failure_signaled'] and merged['recovery_notified'])
  def test_form_reminders_chile_time_and_idempotent_issue(self):
   # September Chile is UTC-3; January is also UTC-3, with Sunday independent of NY session.
   cases=[(dt.datetime(2026,9,24,13,6,tzinfo=UTC),('2026-09-24','10:00')),
