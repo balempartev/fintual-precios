@@ -96,6 +96,7 @@ class RadarTests(unittest.TestCase):
                  patch.object(radar, "refresh_catalog", return_value=catalog), \
                  patch.object(radar, "fetch_snapshots", return_value=({"AAPL": quote}, [])), \
                  patch.object(radar, "sec_filings", return_value=([], [])), \
+                 patch.object(radar.primary, "collect", return_value={"items": [], "sources": []}), \
                  patch.dict(os.environ, {"ALPACA_API_KEY_ID": "synthetic", "ALPACA_API_SECRET_KEY": "synthetic",
                                         "GITHUB_REPOSITORY_PRIVATE": "false"}):
                 self.assertEqual(radar.run(), 0)
