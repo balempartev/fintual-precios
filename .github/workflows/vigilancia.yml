@@ -3,6 +3,8 @@ on:
   schedule:
     # UTC amplio para ambos cambios DST. El reloj decide si mercado está abierto.
     - cron: '6-59/10 13-21 * * 1-5'
+    # Domingo 18:00 Chile ocurre en UTC21/22 según DST; guard local en código.
+    - cron: '6-59/10 21-22 * * 0'
   workflow_dispatch:
     inputs:
       notification_test:
