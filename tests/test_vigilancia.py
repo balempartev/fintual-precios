@@ -11,6 +11,17 @@ from vigilancia import evaluate
 from fuentes_primarias import parse_feed
 UTC=dt.timezone.utc
 class AcceptanceTests(unittest.TestCase):
+ def test_form_reminders_chile_time_and_idempotent_issue(self):
+  # September Chile is UTC-3; January is also UTC-3, with Sunday independent of NY session.
+  cases=[(dt.datetime(2026,9,24,13,6,tzinfo=UTC),('2026-09-24','10:00')),
+         (dt.datetime(2026,9,24,20,16,tzinfo=UTC),('2026-09-24','17:00')),
+         (dt.datetime(2026,9,27,21,6,tzinfo=UTC),('2026-09-27','18:00')),
+         (dt.datetime(2026,9,27,21,26,tzinfo=UTC),None),
+         (dt.datetime(2026,9,26,13,6,tzinfo=UTC),None)]
+  for now,expected in cases:self.assertEqual(vigilancia.form_slot(now),expected)
+  with patch.object(vigilancia,'api',return_value=[{'title':'slot','number':4,'html_url':'https://github.com/example/issues/4'}]) as api:
+   self.assertTrue(vigilancia.issue('slot','safe text')['existing'])
+   self.assertEqual(api.call_count,1)
  def rows(self):
   return [{'run_id':str(n),'event':'schedule','started_at_utc':f'2026-09-24T13:{m}:00Z','generated_at_utc':f'2026-09-24T13:{m+1}:00Z','scanned_symbols':100,'symbols_with_snapshot':90,'symbols_with_recent_iex_trade':12,'failed_batches':[]} for n,m in enumerate([32,37,42])]
  def test_three_distinct_schedule_events_pass(self):
