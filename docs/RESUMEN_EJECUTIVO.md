@@ -2,9 +2,9 @@
 
 ## Resultado observado
 
-El radar en `main` escaneó 11.936 símbolos candidatos durante la sesión NY. En la tercera captura, a las 14:17:53 UTC, persistió 11.869 snapshots Alpaca **IEX** y 2.249 símbolos con operación de los últimos 150 segundos. Los directorios bursátiles no prueban que un activo pueda comprarse en la cuenta Fintual: se verificaron 3.519 enlaces públicos Fintual; su página de ayuda anuncia más de 11.000, pero no entrega aquí una lista exhaustiva verificable. [Estado vivo](estado.json), [auditoría diaria](audit/2026-09-24.jsonl), [catálogo con procedencia](catalogo.json).
+El radar en `main` escaneó 11.936 símbolos candidatos durante la sesión NY. En la captura manual del 24/09 a las 19:09:46 UTC persistió 11.872 snapshots Alpaca **IEX** y 1.996 símbolos con operación reciente. Los directorios bursátiles no prueban que un activo pueda comprarse en la cuenta Fintual: se verificaron 3.519 enlaces públicos Fintual; su página de ayuda anuncia más de 11.000, pero no entrega aquí una lista exhaustiva verificable. Se comprobaron [etiquetas por empresa](sectores.json) para 12 fichas Fintual, incluidas VICR, VKTX e IONQ; las otras 3.507 fichas verificadas aún no están clasificadas. [Estado vivo](estado.json), [auditoría diaria](audit/2026-09-24.jsonl), [catálogo](catalogo.json).
 
-GitHub Actions pasó 14 pruebas de código. La vigilancia manual detectó un barrido atrasado, abrió [incidencia #2](https://github.com/balempartev/fintual-precios/issues/2), disparó una captura que acabó con éxito y publicó comentario de recuperación; los correos de incidencia y recuperación se recibieron en la cuenta del propietario. La **aceptación de tres disparos `schedule` de apertura FALLÓ**: hubo cero. Tres ciclos del mismo `workflow_dispatch` comenzaron a las 14:06:21, 14:11:21 y 14:16:21 UTC (300 segundos exactos); los tres persistieron 11.869 snapshots, sin lotes fallidos. Prueban motor y cadencia interna, nunca el cron externo. [Pruebas](PRUEBAS.md).
+GitHub Actions pasó 16 pruebas remotas; 17 locales después del último cambio. La vigilancia manual detectó un barrido atrasado, abrió [incidencia #2](https://github.com/balempartev/fintual-precios/issues/2), disparó una captura que acabó con éxito y publicó comentario de recuperación; los correos llegaron al propietario. La **aceptación de tres ciclos `schedule` de apertura FALLÓ**: hubo cero. Solo apareció [uno tardío a las 17:56 UTC](https://github.com/balempartev/fintual-precios/actions/runs/36037739383). La recuperación simultánea falló por conflicto al publicar; esa carrera ya fue corregida y probada con capturas manuales. Un nuevo puente de seis ciclos por `schedule` espera su primera prueba automática. [Pruebas](PRUEBAS.md).
 
 Las cinco tareas existentes conservan preapertura, siete cortes horarios, cierre y dos domingos, sin duplicar informes. Se observaron PRE y H01 del 24/09 con comprobantes SENT+INBOX; publicación estable y push del dispositivo no se pudieron comprobar. El formulario privado tiene dos confirmaciones reales guardadas en su base y las dos tareas observadas lo leyeron. La plataforma rechazó crear recordatorios Tasks adicionales: máximo cinco tareas. La vigilancia de GitHub contiene avisos limitados cerca de 10:00 y 17:00 Chile laborables y domingo 18:00; el primer disparo de ese cron aún no se ha observado. La cartera no figura en el repositorio.
 
@@ -16,8 +16,8 @@ Las referencias P01–P30 siguen la numeración original. `PROBADO` significa so
 
 | ID | Estado | Evidencia o límite concreto |
 |---|---|---|
-| P01 | PENDIENTE | Cron UTC instalado; apertura `schedule` fallida. |
-| P02 | PARCIAL | Tres ciclos internos consecutivos probados; cero `schedule` real. |
+| P01 | PENDIENTE | Cron UTC instalado; un `schedule` tardío; apertura fallida; puente desplegado sin prueba automática. |
+| P02 | PARCIAL | Tres ciclos internos consecutivos probados; solo un `schedule` real tardío. |
 | P03 | PARCIAL | 11.936 candidatos; 3.519 enlaces Fintual, sin catálogo oficial exhaustivo. |
 | P04 | PARCIAL | Trade/quote con timestamp individual y pruebas; el repositorio público no entrega las filas. |
 | P05 | PROBADO | Feed etiquetado IEX, sin confundirlo con SIP/NBBO. |
@@ -25,14 +25,14 @@ Las referencias P01–P30 siguen la numeración original. `PROBADO` significa so
 | P07 | BLOQUEADO | Historial de precios desactivado mientras el repositorio sea público. |
 | P08 | PENDIENTE | SEC 403 desde runner; fallback limitado no produce filings nuevos. |
 | P09 | PARCIAL | Feeds primarios Fed/FDA probados; IR empresarial incompleto. |
-| P10 | PARCIAL | Once ETF sectoriales comprobados; empresas individuales sin sector verificable. |
+| P10 | PARCIAL | Doce fichas Fintual con etiquetas individuales comprobadas; 3.507 pendientes y etiquetas no GICS. |
 | P11 | PARCIAL | Ranking alzas, bajas y actividad IEX en memoria; RVOL20d y liquidez consolidada ausentes. |
 | P12 | PARCIAL | Cinco reglas activas; PRE/H01 observados tarde, nueve diarios sin certificar. |
 | P13 | PROBADO | Copia previa, cinco actualizaciones de continuidad y comparación posterior de reglas. |
 | P14 | BLOQUEADO | Flags nativos anteriores false/false; autenticación de ChatGPT y recibo push pendientes. |
 | P15 | PARCIAL | Dos comprobantes programados y correos GitHub de incidencias recibidos; no 9/9. |
 | P16 | BLOQUEADO | Sin API autorizada de publicaciones de Tasks para vigilancia externa. |
-| P17 | PENDIENTE | Regla retrospectiva escrita; entrega recuperada aún no observada. |
+| P17 | PARCIAL | H02 y H03 recuperados retrospectivamente con correos; publicación original y push sin prueba. |
 | P18 | PARCIAL | Formulario real guardó dos confirmaciones y Task leyó dos; envío de prueba `is_test=1` pendiente. |
 | P19 | PARCIAL | Formulario permanente; avisos Chile programados en vigilancia, cron sin prueba. |
 | P20 | PARCIAL | Auditoría pública persistida; inteligencia y precios privados entre tareas no resueltos. |
