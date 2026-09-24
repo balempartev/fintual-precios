@@ -43,15 +43,15 @@ def evaluate(records,now,market_open):
         st=start.astimezone(NY) if start else t
         if r.get('event')=='schedule' and r.get('run_id') and st.hour==9 and 30<=st.minute<=50 and t.hour==9 and t.minute<=55:
             if r.get('symbols_with_recent_iex_trade',0)>0 and r.get('symbols_with_snapshot',0)>=.8*max(1,r.get('scanned_symbols',0)) and not r.get('failed_batches'):
-                if r['run_id'] not in {x['run_id'] for x in window}:window.append(r)
+                if (r['run_id'],r.get('cycle','1')) not in {(x['run_id'],x.get('cycle','1')) for x in window}:window.append(r)
     window.sort(key=lambda r:r['started_at_utc'])
     gaps=[(parsed(b['started_at_utc'])-parsed(a['started_at_utc'])).total_seconds() for a,b in zip(window,window[1:])]
     passed=any(180<=gaps[i]<=420 and 180<=gaps[i+1]<=420 for i in range(max(0,len(gaps)-1)))
     due=(local.hour,local.minute)>=(9,55)
     return {'health':health,'age_sec':age,'latest_run_id':latest.get('run_id') if latest else None,
             'opening_acceptance':'PASSED' if passed else 'FAILED' if due and market_open else 'PENDING',
-            'genuine_schedule_runs':[r['run_id'] for r in window], 'start_gaps_sec':gaps,
-            'criteria':'3 distinct schedule events starting NY09:30–09:50, gaps 180–420s, >=80% snapshots, fresh trades >0, no failed batches',
+            'genuine_schedule_runs':[str(r['run_id'])+':'+str(r.get('cycle','1')) for r in window], 'start_gaps_sec':gaps,
+            'criteria':'3 distinct automatic scheduled cycles starting NY09:30–09:50, gaps 180–420s, >=80% snapshots, fresh trades >0, no failed batches',
             'task_publication_monitor':'BLOCKED_NO_EXTERNAL_TASKS_RECEIPT_API',
             'work_credits_required':False,'same_provider_limitation':'This watchdog is independent of the collector job, but shares GitHub availability.'}
 

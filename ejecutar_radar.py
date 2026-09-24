@@ -5,6 +5,9 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+from urllib.request import Request, urlopen
+from zoneinfo import ZoneInfo
+import datetime as dt
 
 ROOT = Path(__file__).resolve().parent
 
@@ -76,13 +79,34 @@ def persist():
     raise RuntimeError('Could not publish operational ledger after four retries')
 
 
+def scheduled_market_open():
+    """Check each scheduled cycle, including early closes, before requesting quotes."""
+    local = dt.datetime.now(ZoneInfo('America/New_York'))
+    if local.weekday() >= 5 or (local.hour, local.minute) < (9, 30) or local.hour >= 16:
+        return False
+    request = Request('https://paper-api.alpaca.markets/v2/clock', headers={
+        'APCA-API-KEY-ID': os.environ['ALPACA_API_KEY_ID'],
+        'APCA-API-SECRET-KEY': os.environ['ALPACA_API_SECRET_KEY']})
+    try:
+        with urlopen(request, timeout=12) as response:
+            return json.load(response).get('is_open') is True
+    except Exception as exc:
+        print('Market clock unavailable:', type(exc).__name__, flush=True)
+        return False
+
+
 def main():
-    cycles = 3 if os.getenv("GITHUB_EVENT_NAME") == "workflow_dispatch" and os.getenv("VALIDATION_CYCLES") == "3" else 1
+    event = os.getenv('GITHUB_EVENT_NAME')
+    cycles = (6 if event == 'schedule' else
+              3 if event == 'workflow_dispatch' and os.getenv('VALIDATION_CYCLES') == '3' else 1)
     origin = time.monotonic()
     failed = False
     for cycle in range(1, cycles + 1):
         # Start-to-start target includes scan and persistence duration.
         time.sleep(max(0, origin + (cycle - 1) * 300 - time.monotonic()))
+        if event == 'schedule' and not scheduled_market_open():
+            print('Scheduled cycle stopped: NY market closed or clock unavailable', flush=True)
+            break
         print(f"Validation cycle {cycle}/{cycles}", flush=True)
         env = {**os.environ, "RADAR_CYCLE": str(cycle)}
         try:
@@ -93,6 +117,11 @@ def main():
             failed = True
         # Persist diagnostics even when the collector exits with no quotes.
         persist()
+    if event == 'schedule' and not failed and scheduled_market_open():
+        # A queued five-minute cron can start as this runner exits. Holding the
+        # interval prevents the next scheduled run from starting two minutes
+        # after the sixth cycle when the collector takes less than five.
+        time.sleep(max(0, origin + cycles * 300 - time.monotonic()))
     return int(failed)
 
 

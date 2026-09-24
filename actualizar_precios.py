@@ -133,18 +133,18 @@ class FintualTags(HTMLParser):
                     self.tags.append(label)
 
 
-def update_fintual_tags(verified, priority, max_requests=12):
+def update_fintual_tags(verified, priority, max_requests=60, budget_sec=75):
     """Small, bounded progress per capture; failures never imply a sector."""
     try:
         cached = json.loads(SECTOR_TAGS.read_text(encoding='utf-8'))
         entries = cached['symbols'] if isinstance(cached['symbols'], dict) else {}
     except (OSError, ValueError, KeyError, TypeError):
         entries = {}
-    checked, errors = [], []
+    checked, errors, started = [], [], time.monotonic()
     for symbol in list(dict.fromkeys(priority + sorted(verified))):
         if symbol not in verified or symbol in entries:
             continue
-        if len(checked) >= max_requests:
+        if len(checked) >= max_requests or time.monotonic() - started >= budget_sec:
             break
         url = f'https://fintual.cl/f/acciones/{symbol.lower()}/'
         try:
