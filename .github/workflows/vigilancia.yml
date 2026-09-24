@@ -1,0 +1,42 @@
+name: Vigilancia independiente del radar
+on:
+  schedule:
+    # UTC amplio para ambos cambios DST. El reloj decide si mercado está abierto.
+    - cron: '6-59/10 13-21 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      notification_test:
+        description: 'Crear incidencia técnica asignada al propietario para probar avisos'
+        type: boolean
+        default: false
+permissions:
+  contents: write
+  actions: write
+  issues: write
+concurrency:
+  group: radar-fintual-vigilancia
+  cancel-in-progress: false
+jobs:
+  vigilar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Evaluar frescura, apertura y recuperación
+        id: evaluar
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ALPACA_API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
+          ALPACA_API_SECRET_KEY: ${{ secrets.ALPACA_API_SECRET_KEY }}
+          NOTIFICATION_TEST: ${{ inputs.notification_test || 'false' }}
+        run: python vigilancia.py
+      - name: Conservar diagnóstico incluso con falla
+        if: always()
+        run: python -c 'from ejecutar_radar import persist; persist()'
+      - name: Propagar estado de falla
+        if: steps.evaluar.outcome == 'failure'
+        run: exit 1
