@@ -1,22 +1,22 @@
 {
-  "health": "STALE_OR_MISSING",
-  "age_sec": 554.581817,
-  "latest_run_id": "36006946546",
-  "opening_acceptance": "PENDING",
+  "health": "HEALTHY",
+  "age_sec": 352.621678,
+  "latest_run_id": "36008187443",
+  "opening_acceptance": "FAILED",
   "genuine_schedule_runs": [],
   "start_gaps_sec": [],
   "criteria": "3 distinct schedule events starting NY09:30\u201309:50, gaps 180\u2013420s, >=80% snapshots, fresh trades >0, no failed batches",
   "task_publication_monitor": "BLOCKED_NO_EXTERNAL_TASKS_RECEIPT_API",
   "work_credits_required": false,
   "same_provider_limitation": "This watchdog is independent of the collector job, but shares GitHub availability.",
-  "checked_at_utc": "2026-09-24T13:48:09.581817+00:00",
+  "checked_at_utc": "2026-09-24T13:55:55.621678+00:00",
   "date_ny": "2026-09-24",
-  "watchdog_run_id": "36008167854",
-  "recovery": "DISPATCH_REQUESTED_NOT_COMPLETED",
+  "watchdog_run_id": "36009090485",
+  "recovery": "CAPTURE_RESTORED_NOTIFIED",
   "notification_receipt": "UNVERIFIED",
   "incident": {
     "number": 2,
     "url": "https://github.com/balempartev/fintual-precios/issues/2",
-    "existing": false
+    "existing": true
   }
 }
