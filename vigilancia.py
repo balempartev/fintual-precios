@@ -12,7 +12,17 @@ from zoneinfo import ZoneInfo
 
 ROOT=Path(__file__).resolve().parent
 NY=ZoneInfo('America/New_York')
+CL=ZoneInfo('America/Santiago')
 UTC=dt.timezone.utc
+
+def form_slot(now):
+    """A narrow local-time window; reruns are deduplicated by issue title."""
+    local=now.astimezone(CL)
+    if local.minute>=25:return None
+    hour=local.hour
+    if (local.weekday()<5 and hour in (10,17)) or (local.weekday()==6 and hour==18):
+        return local.date().isoformat(),f'{hour:02d}:00'
+    return None
 
 def parsed(s):
     try:
@@ -95,6 +105,12 @@ def main():
         try:
             report['notification_test_issue']=issue('Radar Fintual · prueba técnica de avisos '+date,'Prueba inocua solicitada por el propietario. No contiene precios, posiciones ni claves. Recibir esta incidencia confirma únicamente el canal de GitHub; no prueba push/email de ChatGPT Tasks.\n\nEjecución: https://github.com/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+os.environ['GITHUB_RUN_ID'])
         except RuntimeError as e:report['notification_test_error']=str(e)
+    slot=form_slot(now)
+    if slot:
+        title='Radar Fintual · confirmar cartera '+slot[0]+' '+slot[1]+' Chile'
+        try:
+            report['form_reminder']=issue(title,'Recordatorio de confirmación en el formulario privado de Radar Fintual. Este aviso técnico procede de GitHub; no acredita push ni ejecución de ChatGPT Tasks. No publiques aquí posiciones, saldos ni órdenes.')
+        except RuntimeError as e:report['form_reminder_error']=str(e)
     if report['health'] in {'STALE_OR_MISSING','UNKNOWN_CLOCK'} or report['opening_acceptance']=='FAILED':
         try:
             report['incident']=issue('Radar Fintual · incidencia de captura '+date,'Estado técnico: '+report['health']+'; prueba de apertura: '+report['opening_acceptance']+'. Revisa docs/vigilancia.json. Recuperación limitada a 2 intentos diarios con separación de 10 min. No implica que un informe financiero haya sido publicado.')
@@ -106,10 +122,15 @@ def main():
             state['recovery_notified']=True
             report['recovery']='CAPTURE_RESTORED_NOTIFIED'
         except RuntimeError as e:report['recovery_notification_error']=str(e)
+    bad=report['health'] in {'STALE_OR_MISSING','UNKNOWN_CLOCK'} or report['opening_acceptance']=='FAILED'
+    previous_bad=previous.get('date_ny')==date and (previous.get('health') in {'STALE_OR_MISSING','UNKNOWN_CLOCK'} or previous.get('opening_acceptance')=='FAILED')
+    signal_failure=bad and not state.get('failure_signaled') and not previous_bad
+    if bad:state['failure_signaled']=True
+    report['failure_email_once_per_day']=signal_failure
     statepath.write_text(json.dumps(state,indent=2)+'\n')
     (ROOT/'docs'/'vigilancia.json').write_text(json.dumps(report,indent=2)+'\n')
     hist=ROOT/'docs'/'vigilancia';hist.mkdir(exist_ok=True)
     with (hist/(date+'.jsonl')).open('a') as f:f.write(json.dumps(report)+'\n')
     print(json.dumps(report))
-    return 1 if report['health'] in {'STALE_OR_MISSING','UNKNOWN_CLOCK'} or report['opening_acceptance']=='FAILED' else 0
+    return 1 if signal_failure else 0
 if __name__=='__main__':sys.exit(main())
