@@ -34,7 +34,8 @@ def reconcile(path, remote, produced):
             return produced
     try:
         old, new = json.loads(remote), json.loads(produced)
-        timestamp = 'checked_at_utc' if path == 'docs/vigilancia.json' else 'generated_at_utc'
+        timestamp = ('checked_at_utc' if path == 'docs/vigilancia.json' else
+                     'updated_at_utc' if path == 'docs/sectores.json' else 'generated_at_utc')
         if old.get(timestamp, '') > new.get(timestamp, ''):
             return remote
     except (ValueError, TypeError, AttributeError):

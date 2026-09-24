@@ -22,6 +22,7 @@ DOCS = ROOT / "docs"
 NY = ZoneInfo("America/New_York")
 UTC = dt.timezone.utc
 CATALOG, STATUS, PRICES = (DOCS / name for name in ("catalogo.json", "estado.json", "precios.json"))
+SECTOR_TAGS = DOCS / "sectores.json"
 NASDAQ_FILES = (
     "https://www.nasdaqtrader.com/dynamic/symdir/nasdaqlisted.txt",
     "https://www.nasdaqtrader.com/dynamic/symdir/otherlisted.txt",
@@ -87,6 +88,88 @@ class FintualLinks(HTMLParser):
             match = re.search(r"(?:https?://(?:www\.)?fintual\.cl)?/f/acciones/([a-z0-9.\-]+)/?(?:[?#]|$)", href, re.I)
             if match and (symbol := valid_symbol(match.group(1))):
                 self.symbols.add(symbol)
+
+
+class FintualTags(HTMLParser):
+    """Read a company's own public Etiquetas chips, not its descriptive prose."""
+    def __init__(self):
+        super().__init__()
+        self.tags, self.heading, self.labels = [], False, False
+        self.heading_text, self.chip_depth, self.paragraph, self.parts = [], 0, False, []
+        self.paragraph_text = []
+
+    def handle_starttag(self, tag, attrs):
+        attributes = dict(attrs)
+        if tag == 'h3':
+            self.heading, self.heading_text = True, []
+        elif tag in {'h2', 'footer'}:
+            self.labels = False
+        if tag == 'div':
+            if self.chip_depth:
+                self.chip_depth += 1
+            elif self.labels and 'AssetTagChip_root' in attributes.get('class', ''):
+                self.chip_depth, self.parts = 1, []
+        if tag == 'p' and self.chip_depth:
+            self.paragraph, self.paragraph_text = True, []
+
+    def handle_data(self, data):
+        if self.heading:
+            self.heading_text.append(data)
+        if self.paragraph:
+            self.paragraph_text.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == 'h3' and self.heading:
+            self.labels = ''.join(self.heading_text).strip() == 'Etiquetas'
+            self.heading = False
+        elif tag == 'p' and self.paragraph:
+            self.parts.append(''.join(self.paragraph_text).strip())
+            self.paragraph = False
+        elif tag == 'div' and self.chip_depth:
+            self.chip_depth -= 1
+            if self.chip_depth == 0 and len(self.parts) >= 2:
+                label = self.parts[-1]
+                if 1 <= len(label) <= 60 and label not in self.tags:
+                    self.tags.append(label)
+
+
+def update_fintual_tags(verified, priority, max_requests=12):
+    """Small, bounded progress per capture; failures never imply a sector."""
+    try:
+        cached = json.loads(SECTOR_TAGS.read_text(encoding='utf-8'))
+        entries = cached['symbols'] if isinstance(cached['symbols'], dict) else {}
+    except (OSError, ValueError, KeyError, TypeError):
+        entries = {}
+    checked, errors = [], []
+    for symbol in list(dict.fromkeys(priority + sorted(verified))):
+        if symbol not in verified or symbol in entries:
+            continue
+        if len(checked) >= max_requests:
+            break
+        url = f'https://fintual.cl/f/acciones/{symbol.lower()}/'
+        try:
+            page = get_bytes(url, attempts=1, timeout=4)
+            parser = FintualTags()
+            parser.feed(page.decode('utf-8', errors='replace'))
+            entries[symbol] = {'tags': parser.tags, 'source_url': url,
+                               'checked_at_utc': iso(now_utc()),
+                               'status': 'TAGS_FOUND' if parser.tags else 'NO_PUBLIC_TAGS'}
+            checked.append(symbol)
+        except RuntimeError as exc:
+            checked.append(symbol)
+            errors.append({'symbol': symbol, 'error': str(exc)})
+            # A block or rate limit must stop this cycle, not cause 12 retries.
+            if '(403)' in str(exc) or '(429)' in str(exc):
+                break
+        if len(checked) < max_requests:
+            time.sleep(.15)
+    result = {'source': 'Fintual public asset Etiquetas; multi-label; not GICS',
+              'updated_at_utc': iso(now_utc()), 'symbols': entries,
+              'verified_symbols': len(verified),
+              'with_public_tags': sum(bool(entry.get('tags')) for symbol, entry in entries.items() if symbol in verified),
+              'checked_this_cycle': checked, 'errors': errors}
+    write_json(SECTOR_TAGS, result)
+    return result
 
 
 def parse_directory(body, filename):
@@ -291,6 +374,7 @@ def run():
     catalog = refresh_catalog(load_catalog(), date)
     assets = {row["symbol"]: row for row in catalog["assets"]}
     priority = list(dict.fromkeys(priority_symbols() + list(primary.SECTORS)))
+    sector_tags = update_fintual_tags(set(catalog['fintual_verified']), priority)
     symbols = [s for s in assets if s not in priority] + [s for s in priority if s in assets]
     key, secret = os.getenv("ALPACA_API_KEY_ID"), os.getenv("ALPACA_API_SECRET_KEY")
     warnings = list(catalog["warnings"])
@@ -324,9 +408,13 @@ def run():
               "fintual_links_verified": len(catalog["fintual_verified"]),
               "fintual_account_tradability_verified": False,
               "sector_filter_applied": False, "sector_classification_complete": False,
+              "fintual_company_tags_verified": sector_tags['with_public_tags'],
+              "fintual_company_tags_checked_this_cycle": len(sector_tags['checked_this_cycle']),
+              "fintual_company_tags_errors": sector_tags['errors'],
+              "fintual_company_tags_source": sector_tags['source'],
               "sector_proxies": [{"symbol": symbol, "sector": sector, "in_catalog": symbol in assets, "fintual_link_verified": symbol in catalog["fintual_verified"]} for symbol, sector in primary.SECTORS.items()],
               "sector_classification_source": primary.SECTOR_SOURCE,
-              "sector_classification_scope": "11 sector ETF proxies only; individual equities remain unclassified",
+              "sector_classification_scope": "Individual Fintual multi-label tags for verified fichas; unknown equities remain unclassified; 11 sector ETF proxies are separate",
               "primary_news_sources": news["sources"],
               "scanned_symbols": len(symbols), "symbols_with_snapshot": len(snapshots),
               "symbols_with_recent_iex_trade": sum(row["recent_trade_150sec"] for row in snapshots.values()),
@@ -348,7 +436,8 @@ def run():
         selected = [{**row, "exchange": assets.get(row["symbol"], {}).get("exchange"),
                      "kind": assets.get(row["symbol"], {}).get("kind"),
                      "fintual_public_link_verified": row["symbol"] in verified_set,
-                     "sector": primary.SECTORS.get(row["symbol"], "UNCLASSIFIED")} for row in movers["selected"]]
+                     "sector": primary.SECTORS.get(row["symbol"], "UNCLASSIFIED"),
+                     "fintual_public_tags": sector_tags['symbols'].get(row['symbol'], {}).get('tags', [])} for row in movers["selected"]]
         report = {"generated_at_utc": iso(finished), "feed": status["market_feed"],
                   "catalog_size": len(symbols), "fintual_verified_count": len(catalog["fintual_verified"]),
                   "gainers": movers["gainers"], "losers": movers["losers"],
