@@ -142,7 +142,9 @@ def update_fintual_tags(verified, priority, max_requests=60, budget_sec=75):
         entries = {}
     checked, errors, started = [], [], time.monotonic()
     for symbol in list(dict.fromkeys(priority + sorted(verified))):
-        if symbol not in verified or symbol in entries:
+        old = entries.get(symbol)
+        if symbol not in verified or (old and (old.get('status') != 'HTTP_404' or
+                                                   old.get('checked_at_utc', '')[:10] == iso(now_utc())[:10])):
             continue
         if len(checked) >= max_requests or time.monotonic() - started >= budget_sec:
             break
@@ -158,6 +160,9 @@ def update_fintual_tags(verified, priority, max_requests=60, budget_sec=75):
         except RuntimeError as exc:
             checked.append(symbol)
             errors.append({'symbol': symbol, 'error': str(exc)})
+            if '(404)' in str(exc):
+                entries[symbol] = {'tags': [], 'source_url': url,
+                                   'checked_at_utc': iso(now_utc()), 'status': 'HTTP_404'}
             # A block or rate limit must stop this cycle, not cause 12 retries.
             if '(403)' in str(exc) or '(429)' in str(exc):
                 break
@@ -167,6 +172,7 @@ def update_fintual_tags(verified, priority, max_requests=60, budget_sec=75):
               'updated_at_utc': iso(now_utc()), 'symbols': entries,
               'verified_symbols': len(verified),
               'with_public_tags': sum(bool(entry.get('tags')) for symbol, entry in entries.items() if symbol in verified),
+              'http_404_unverified': sum(entry.get('status') == 'HTTP_404' for symbol, entry in entries.items() if symbol in verified),
               'checked_this_cycle': checked, 'errors': errors}
     write_json(SECTOR_TAGS, result)
     return result
@@ -409,6 +415,7 @@ def run():
               "fintual_account_tradability_verified": False,
               "sector_filter_applied": False, "sector_classification_complete": False,
               "fintual_company_tags_verified": sector_tags['with_public_tags'],
+              "fintual_company_pages_404_unverified": sector_tags['http_404_unverified'],
               "fintual_company_tags_checked_this_cycle": len(sector_tags['checked_this_cycle']),
               "fintual_company_tags_errors": sector_tags['errors'],
               "fintual_company_tags_source": sector_tags['source'],
