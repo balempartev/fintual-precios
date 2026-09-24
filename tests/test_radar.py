@@ -10,6 +10,23 @@ import actualizar_precios as radar
 
 
 class RadarTests(unittest.TestCase):
+    def test_real_fintual_labels_are_multivalued_and_only_for_verified_symbols(self):
+        page = ('<h3>Otra sección</h3><p>Falsa</p><h3>Etiquetas</h3>'
+                '<div class="AssetTagChip_root__new"><p>🔬</p><p>Biotecnología</p></div>'
+                '<div class="AssetTagChip_root__new"><div><p>📱</p></div><p>Tecnología</p></div>'
+                '<h2>Otra sección</h2><div class="AssetTagChip_root__new"><p>❌</p><p>Incorrecta</p></div>')
+        parser = radar.FintualTags()
+        parser.feed(page)
+        self.assertEqual(parser.tags, ['Biotecnología', 'Tecnología'])
+        with tempfile.TemporaryDirectory() as folder:
+            with patch.object(radar, 'SECTOR_TAGS', Path(folder) / 'sectores.json'), \
+                 patch.object(radar, 'get_bytes', return_value=page.encode()) as fetch, \
+                 patch.object(radar.time, 'sleep'):
+                result = radar.update_fintual_tags({'VKTX'}, ['FAKE', 'VKTX'], max_requests=3)
+            self.assertEqual(result['with_public_tags'], 1)
+            self.assertEqual(result['checked_this_cycle'], ['VKTX'])
+            self.assertEqual(fetch.call_count, 1)
+            self.assertIn('/vktx/', fetch.call_args.args[0])
     def test_http_failure_is_safe_and_does_not_expose_url_credentials(self):
         from urllib.error import HTTPError
         with patch.object(radar, "urlopen", side_effect=HTTPError("https://example.test", 403, "Forbidden", {}, None)):
@@ -91,8 +108,10 @@ class RadarTests(unittest.TestCase):
             with patch.multiple(radar, ROOT=root, DOCS=root / "docs",
                                 CATALOG=root / "docs/catalogo.json",
                                 STATUS=root / "docs/estado.json",
-                                PRICES=root / "docs/precios.json"), \
+                                PRICES=root / "docs/precios.json",
+                                SECTOR_TAGS=root / "docs/sectores.json"), \
                  patch.object(radar, "now_utc", return_value=instant), \
+                 patch.object(radar, "get_bytes", return_value=b'<h3>Etiquetas</h3><div class="AssetTagChip_root"><p>X</p><p>Tecnologia</p></div>'), \
                  patch.object(radar, "refresh_catalog", return_value=catalog), \
                  patch.object(radar, "fetch_snapshots", return_value=({"AAPL": quote}, [])), \
                  patch.object(radar, "sec_filings", return_value=([], [])), \
