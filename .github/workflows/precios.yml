@@ -22,7 +22,7 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: radar-fintual-publicacion
+  group: ${{ github.event_name == 'push' && 'radar-fintual-pruebas' || 'radar-fintual-publicacion' }}
   cancel-in-progress: false
 jobs:
   radar:
