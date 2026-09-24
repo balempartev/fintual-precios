@@ -73,21 +73,39 @@ def main():
     except Exception as e:market_open=False;clock_error=type(e).__name__
     report=evaluate(records,now,market_open)
     if clock_error:report['health']='UNKNOWN_CLOCK';report['clock_error']=clock_error
+    previous_path=ROOT/'docs'/'vigilancia.json'
+    try:previous=json.loads(previous_path.read_text())
+    except (OSError,ValueError):previous={}
+    if report['opening_acceptance']=='PENDING' and previous.get('date_ny')==date and previous.get('opening_acceptance') in {'PASSED','FAILED'}:
+        for field in ['opening_acceptance','genuine_schedule_runs','start_gaps_sec']:report[field]=previous[field]
     report.update({'checked_at_utc':now.isoformat(),'date_ny':date,'watchdog_run_id':os.environ.get('GITHUB_RUN_ID'),'recovery':None,'notification_receipt':'UNVERIFIED'})
     statepath=ROOT/'docs'/'recovery_state.json'
     try:state=json.loads(statepath.read_text())
     except (OSError,ValueError):state={}
     if state.get('date')!=date:state={'date':date,'attempts':0,'last_attempt':None}
+    if not state.get('incident_number') and previous.get('date_ny')==date:
+        state['incident_number']=(previous.get('incident') or {}).get('number')
     last=parsed(state.get('last_attempt'));cooldown=not last or (now-last).total_seconds()>=600
-    try:
-        if report['health']=='STALE_OR_MISSING' and state['attempts']<2 and cooldown:
+    if report['health']=='STALE_OR_MISSING' and state['attempts']<2 and cooldown:
+        try:
             api('/actions/workflows/precios.yml/dispatches','POST',{'ref':'main','inputs':{'validation_cycles':'1'}})
             state['attempts']+=1;state['last_attempt']=now.isoformat();report['recovery']='DISPATCH_REQUESTED_NOT_COMPLETED'
-        if os.getenv('NOTIFICATION_TEST')=='true':
+        except RuntimeError as e:report['recovery_error']=str(e)
+    if os.getenv('NOTIFICATION_TEST')=='true':
+        try:
             report['notification_test_issue']=issue('Radar Fintual · prueba técnica de avisos '+date,'Prueba inocua solicitada por el propietario. No contiene precios, posiciones ni claves. Recibir esta incidencia confirma únicamente el canal de GitHub; no prueba push/email de ChatGPT Tasks.\n\nEjecución: https://github.com/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+os.environ['GITHUB_RUN_ID'])
-        if report['health'] in {'STALE_OR_MISSING','UNKNOWN_CLOCK'} or report['opening_acceptance']=='FAILED':
+        except RuntimeError as e:report['notification_test_error']=str(e)
+    if report['health'] in {'STALE_OR_MISSING','UNKNOWN_CLOCK'} or report['opening_acceptance']=='FAILED':
+        try:
             report['incident']=issue('Radar Fintual · incidencia de captura '+date,'Estado técnico: '+report['health']+'; prueba de apertura: '+report['opening_acceptance']+'. Revisa docs/vigilancia.json. Recuperación limitada a 2 intentos diarios con separación de 10 min. No implica que un informe financiero haya sido publicado.')
-    except RuntimeError as e:report['recovery_error']=str(e)
+            state['incident_number']=report['incident']['number']
+        except RuntimeError as e:report['incident_error']=str(e)
+    if report['health']=='HEALTHY' and state.get('incident_number') and not state.get('recovery_notified'):
+        try:
+            api('/issues/'+str(state['incident_number'])+'/comments','POST',{'body':'Captura recuperada: nueva ejecución '+str(report['latest_run_id'])+'; edad '+str(round(report['age_sec']))+' s a '+now.isoformat()+'. La puntualidad del cron y la entrega de informes ChatGPT requieren pruebas independientes.'})
+            state['recovery_notified']=True
+            report['recovery']='CAPTURE_RESTORED_NOTIFIED'
+        except RuntimeError as e:report['recovery_notification_error']=str(e)
     statepath.write_text(json.dumps(state,indent=2)+'\n')
     (ROOT/'docs'/'vigilancia.json').write_text(json.dumps(report,indent=2)+'\n')
     hist=ROOT/'docs'/'vigilancia';hist.mkdir(exist_ok=True)
