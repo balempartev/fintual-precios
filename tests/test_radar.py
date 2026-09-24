@@ -34,6 +34,17 @@ class RadarTests(unittest.TestCase):
             self.assertEqual(result['checked_this_cycle'], ['VKTX'])
             self.assertEqual(fetch.call_count, 1)
             self.assertIn('/vktx/', fetch.call_args.args[0])
+    def test_fintual_404_is_recorded_but_not_mistaken_for_delisting(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with patch.object(radar, 'SECTOR_TAGS', Path(folder) / 'sectores.json'), \
+                 patch.object(radar, 'get_bytes', side_effect=RuntimeError('fintual.cl: HTTPError (404)')) as fetch, \
+                 patch.object(radar.time, 'sleep'):
+                first = radar.update_fintual_tags({'ABNB'}, ['ABNB'], max_requests=1)
+                second = radar.update_fintual_tags({'ABNB'}, ['ABNB'], max_requests=1)
+            self.assertEqual(first['http_404_unverified'], 1)
+            self.assertEqual(first['with_public_tags'], 0)
+            self.assertEqual(second['checked_this_cycle'], [])
+            self.assertEqual(fetch.call_count, 1)
     def test_http_failure_is_safe_and_does_not_expose_url_credentials(self):
         from urllib.error import HTTPError
         with patch.object(radar, "urlopen", side_effect=HTTPError("https://example.test", 403, "Forbidden", {}, None)):
