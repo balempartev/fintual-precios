@@ -1,0 +1,3 @@
+[functions.radar-heartbeat]
+# The function checks its own random bearer secret before doing any work.
+verify_jwt = false
