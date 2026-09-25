@@ -1,7 +1,7 @@
 {
-  "health": "STALE_OR_MISSING",
-  "age_sec": null,
-  "latest_run_id": null,
+  "health": "CLOSED",
+  "age_sec": 9719.744802,
+  "latest_run_id": "36170081855",
   "opening_acceptance": "FAILED",
   "genuine_schedule_runs": [],
   "start_gaps_sec": [],
@@ -9,15 +9,15 @@
   "task_publication_monitor": "BLOCKED_NO_EXTERNAL_TASKS_RECEIPT_API",
   "work_credits_required": false,
   "same_provider_limitation": "This watchdog is independent of the collector job, but shares GitHub availability.",
-  "checked_at_utc": "2026-09-25T17:54:45.310540+00:00",
+  "checked_at_utc": "2026-09-25T21:07:37.744802+00:00",
   "date_ny": "2026-09-25",
-  "watchdog_run_id": "36170072474",
-  "recovery": "DISPATCH_REQUESTED_NOT_COMPLETED",
+  "watchdog_run_id": "36189785477",
+  "recovery": null,
   "notification_receipt": "UNVERIFIED",
   "incident": {
     "number": 3,
     "url": "https://github.com/balempartev/fintual-precios/issues/3",
-    "existing": false
+    "existing": true
   },
-  "failure_email_once_per_day": true
+  "failure_email_once_per_day": false
 }
