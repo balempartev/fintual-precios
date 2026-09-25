@@ -6,6 +6,7 @@ create table if not exists public.radar_heartbeat (
   status text not null check (status in (
     'OUTSIDE_REGULAR_WINDOW', 'NO_TIMESTAMP', 'FUTURE_TIMESTAMP',
     'STALE_OR_MISSING', 'RECENT_MANUAL_NOT_SCHEDULED', 'RECENT_SCHEDULED',
+    'INCOMPLETE_CAPTURE',
     'SOURCE_UNAVAILABLE')),
   age_sec integer,
   run_id text,
