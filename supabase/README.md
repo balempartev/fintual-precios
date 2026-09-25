@@ -18,7 +18,8 @@ Conservar GitHub Actions y las cinco Tasks mientras tanto.
    por tres invocaciones automáticas a minutos separados por cinco, junto con
    `cron.job_run_details` y las respuestas de `net._http_response`.
 5. Comprobar siguiente apertura NY con el mercado abierto: `RECENT_SCHEDULED`
-   exige evento `schedule` y edad <=480 segundos. Ningún manual acredita cron.
+   exige evento `schedule`, edad <=480 segundos, >=80% snapshots, alguna operación
+   IEX reciente y cero lotes fallidos. Ningún manual acredita cron.
 
 El monitor solo registra horas, ID de run, contadores y errores del estado público.
 No almacena cotizaciones, formularios ni cartera; las lecturas `anon` y
