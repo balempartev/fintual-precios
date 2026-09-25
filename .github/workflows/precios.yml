@@ -37,6 +37,8 @@ jobs:
           python-version: '3.11'
       - name: Pruebas locales sin credenciales
         run: python -m unittest discover -s tests -v
+      - name: Pruebas del monitor externo sin credenciales
+        run: node --test tests/test_heartbeat.mjs
       - name: Verificar sesión de NY
         id: horario
         env:
