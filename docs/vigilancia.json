@@ -1,6 +1,6 @@
 {
   "health": "CLOSED",
-  "age_sec": 9719.744802,
+  "age_sec": 19922.155392,
   "latest_run_id": "36170081855",
   "opening_acceptance": "FAILED",
   "genuine_schedule_runs": [],
@@ -9,9 +9,9 @@
   "task_publication_monitor": "BLOCKED_NO_EXTERNAL_TASKS_RECEIPT_API",
   "work_credits_required": false,
   "same_provider_limitation": "This watchdog is independent of the collector job, but shares GitHub availability.",
-  "checked_at_utc": "2026-09-25T21:07:37.744802+00:00",
+  "checked_at_utc": "2026-09-25T23:57:40.155392+00:00",
   "date_ny": "2026-09-25",
-  "watchdog_run_id": "36189785477",
+  "watchdog_run_id": "36203000388",
   "recovery": null,
   "notification_receipt": "UNVERIFIED",
   "incident": {
