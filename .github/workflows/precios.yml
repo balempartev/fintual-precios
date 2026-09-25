@@ -2,7 +2,10 @@ name: Radar Fintual (solo lectura)
 on:
   schedule:
     # UTC 13–20 cubre apertura/cierre con o sin DST; el guard usa NY y reloj oficial.
-    - cron: '2-59/5 13-20 * * 1-5'
+    # One 6-cycle bridge every 30 min. The bridge itself samples every 300s.
+    # Prior 5-min cron + 30-min bridge oversubscribed one concurrency group.
+    # UTC 13-21 spans both New York DST states; Alpaca clock guards each cycle.
+    - cron: '2,32 13-21 * * 1-5'
   workflow_dispatch:
     inputs:
       validation_cycles:
@@ -18,6 +21,7 @@ on:
       - 'fuentes_primarias.py'
       - 'vigilancia.py'
       - 'tests/**'
+      - 'supabase/**'
       - '.github/workflows/precios.yml'
 permissions:
   contents: write
@@ -38,7 +42,7 @@ jobs:
       - name: Pruebas locales sin credenciales
         run: python -m unittest discover -s tests -v
       - name: Pruebas del monitor externo sin credenciales
-        run: node --test tests/test_heartbeat.mjs
+        run: node --test tests/*.mjs
       - name: Verificar sesión de NY
         id: horario
         env:
