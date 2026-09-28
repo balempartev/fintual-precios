@@ -35,7 +35,21 @@ def evaluate(records,now,market_open):
     valid=[r for r in records if parsed(r.get('generated_at_utc')) and parsed(r['generated_at_utc']).astimezone(NY).date()==local.date()]
     latest=max(valid,key=lambda r:r['generated_at_utc']) if valid else None
     age=(now-parsed(latest['generated_at_utc'])).total_seconds() if latest else None
-    health='CLOSED' if not market_open else 'HEALTHY' if latest and 0<=age<=480 and latest.get('symbols_with_snapshot',0)>0 else 'STALE_OR_MISSING'
+    # Independent health does not prove that a snapshot is complete or scheduled.
+    # Enforce the same coverage/failed-batch rules as the external heartbeat.
+    def capture_complete(r):
+        scanned=r.get('scanned_symbols')
+        count=r.get('symbols_with_snapshot')
+        trades=r.get('symbols_with_recent_iex_trade')
+        return (isinstance(scanned,int) and not isinstance(scanned,bool) and scanned>0
+                and isinstance(count,int) and not isinstance(count,bool)
+                and 0<=count<=scanned and count>=.8*scanned
+                and isinstance(trades,int) and not isinstance(trades,bool)
+                and 0<trades<=scanned and isinstance(r.get('failed_batches'),list)
+                and not r['failed_batches'])
+    health=('CLOSED' if not market_open else 'STALE_OR_MISSING' if not latest or
+            age is None or not 0<=age<=480 else 'HEALTHY' if capture_complete(latest)
+            else 'INCOMPLETE_CAPTURE')
     window=[]
     for r in valid:
         t=parsed(r['generated_at_utc']).astimezone(NY)
@@ -96,7 +110,7 @@ def main():
     if not state.get('incident_number') and previous.get('date_ny')==date:
         state['incident_number']=(previous.get('incident') or {}).get('number')
     last=parsed(state.get('last_attempt'));cooldown=not last or (now-last).total_seconds()>=600
-    if report['health']=='STALE_OR_MISSING' and state['attempts']<2 and cooldown:
+    if report['health'] in {'STALE_OR_MISSING','INCOMPLETE_CAPTURE'} and state['attempts']<2 and cooldown:
         try:
             api('/actions/workflows/precios.yml/dispatches','POST',{'ref':'main','inputs':{'validation_cycles':'1'}})
             state['attempts']+=1;state['last_attempt']=now.isoformat();report['recovery']='DISPATCH_REQUESTED_NOT_COMPLETED'
@@ -111,7 +125,7 @@ def main():
         try:
             report['form_reminder']=issue(title,'Recordatorio de confirmación en el formulario privado de Radar Fintual. Este aviso técnico procede de GitHub; no acredita push ni ejecución de ChatGPT Tasks. No publiques aquí posiciones, saldos ni órdenes.')
         except RuntimeError as e:report['form_reminder_error']=str(e)
-    if report['health'] in {'STALE_OR_MISSING','UNKNOWN_CLOCK'} or report['opening_acceptance']=='FAILED':
+    if report['health'] in {'STALE_OR_MISSING','INCOMPLETE_CAPTURE','UNKNOWN_CLOCK'} or report['opening_acceptance']=='FAILED':
         try:
             report['incident']=issue('Radar Fintual · incidencia de captura '+date,'Estado técnico: '+report['health']+'; prueba de apertura: '+report['opening_acceptance']+'. Revisa docs/vigilancia.json. Recuperación limitada a 2 intentos diarios con separación de 10 min. No implica que un informe financiero haya sido publicado.')
             state['incident_number']=report['incident']['number']
@@ -122,8 +136,8 @@ def main():
             state['recovery_notified']=True
             report['recovery']='CAPTURE_RESTORED_NOTIFIED'
         except RuntimeError as e:report['recovery_notification_error']=str(e)
-    bad=report['health'] in {'STALE_OR_MISSING','UNKNOWN_CLOCK'} or report['opening_acceptance']=='FAILED'
-    previous_bad=previous.get('date_ny')==date and (previous.get('health') in {'STALE_OR_MISSING','UNKNOWN_CLOCK'} or previous.get('opening_acceptance')=='FAILED')
+    bad=report['health'] in {'STALE_OR_MISSING','INCOMPLETE_CAPTURE','UNKNOWN_CLOCK'} or report['opening_acceptance']=='FAILED'
+    previous_bad=previous.get('date_ny')==date and (previous.get('health') in {'STALE_OR_MISSING','INCOMPLETE_CAPTURE','UNKNOWN_CLOCK'} or previous.get('opening_acceptance')=='FAILED')
     signal_failure=bad and not state.get('failure_signaled') and not previous_bad
     if bad:state['failure_signaled']=True
     report['failure_email_once_per_day']=signal_failure
