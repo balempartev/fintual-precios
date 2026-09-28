@@ -51,6 +51,14 @@ class AcceptanceTests(unittest.TestCase):
     if mode=='same_run':r['run_id']='same';r['cycle']='1'
     else:r['event']=mode
    self.assertEqual(evaluate(rows,dt.datetime(2026,9,24,13,55,tzinfo=UTC),True)['opening_acceptance'],'FAILED')
+ def test_recent_but_incomplete_capture_is_not_healthy(self):
+  now=dt.datetime(2026,9,24,15,tzinfo=UTC)
+  row=self.rows()[0]
+  row['generated_at_utc']='2026-09-24T14:59:30Z'
+  for broken in [{'symbols_with_snapshot':10},{'symbols_with_recent_iex_trade':0},
+                 {'failed_batches':[{'error':'timeout'}]},{'scanned_symbols':0}]:
+   self.assertEqual(evaluate([{**row,**broken}],now,True)['health'],'INCOMPLETE_CAPTURE')
+  self.assertEqual(evaluate([row],now,True)['health'],'HEALTHY')
  def test_stale_capture_detected_independent_of_collector(self):
   self.assertEqual(evaluate(self.rows(),dt.datetime(2026,9,24,15,tzinfo=UTC),True)['health'],'STALE_OR_MISSING')
   self.assertEqual(evaluate([],dt.datetime(2026,9,24,22,tzinfo=UTC),False)['health'],'CLOSED')
@@ -78,7 +86,7 @@ class AcceptanceTests(unittest.TestCase):
   now=dt.datetime.now(UTC);date=now.astimezone(vigilancia.NY).date().isoformat()
   with tempfile.TemporaryDirectory() as tmp:
    root=Path(tmp);audit=root/'docs'/'audit';audit.mkdir(parents=True)
-   (audit/(date+'.jsonl')).write_text(json.dumps({'run_id':'new','generated_at_utc':(now-dt.timedelta(seconds=30)).isoformat(),'symbols_with_snapshot':10})+'\n')
+   (audit/(date+'.jsonl')).write_text(json.dumps({'run_id':'new','generated_at_utc':(now-dt.timedelta(seconds=30)).isoformat(),'scanned_symbols':10,'symbols_with_snapshot':10,'symbols_with_recent_iex_trade':2,'failed_batches':[]})+'\n')
    (root/'docs'/'vigilancia.json').write_text(json.dumps({'date_ny':date,'incident':{'number':7}}))
    (root/'docs'/'recovery_state.json').write_text(json.dumps({'date':date,'attempts':1,'last_attempt':None}))
    with patch.object(vigilancia,'ROOT',root),patch.object(vigilancia,'urlopen',return_value=io.BytesIO(b'{"is_open":true}')),patch.object(vigilancia,'api',return_value={}) as api,patch.object(vigilancia,'issue',return_value={'number':7,'url':'https://github.com/example/issues/7'}),patch.dict(os.environ,{'GITHUB_REPOSITORY':'owner/repo','GITHUB_RUN_ID':'test','ALPACA_API_KEY_ID':'synthetic','ALPACA_API_SECRET_KEY':'synthetic'}):
