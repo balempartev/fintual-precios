@@ -69,6 +69,22 @@ def evaluate(records,now,market_open):
             'task_publication_monitor':'BLOCKED_NO_EXTERNAL_TASKS_RECEIPT_API',
             'work_credits_required':False,'same_provider_limitation':'This watchdog is independent of the collector job, but shares GitHub availability.'}
 
+def external_opening_authority(report, now):
+    """Do not infer external scheduler provenance from public dispatch records.
+
+    Supabase correlates cron slots, accepted requests, first-attempt runs and
+    successful scanner steps. Its private audit is the authority after cutover.
+    Capture health and bounded recovery remain independent and unchanged.
+    """
+    if now.astimezone(NY).date() < dt.date(2026, 9, 29):
+        return report
+    return {**report,
+            'legacy_native_opening_acceptance': report['opening_acceptance'],
+            'opening_acceptance': 'EXTERNAL_AUDIT_REQUIRED',
+            'opening_authority': 'public.radar_external_daily_capture_audit',
+            'opening_evidence_verified_here': False,
+            'criteria': 'Private Supabase audit: 3 verified production dispatch captures; NY09:30-09:50 starts, 180-420s gaps, >=80% snapshots, fresh trades >0, no failed batches. Manual/validation runs excluded.'}
+
 def api(path,method='GET',body=None):
     repo=os.environ['GITHUB_REPOSITORY'];token=os.environ['GH_TOKEN']
     req=Request('https://api.github.com/repos/'+repo+path,method=method,data=None if body is None else json.dumps(body).encode(),headers={'Authorization':'Bearer '+token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','User-Agent':'RadarFintual-watchdog'})
@@ -95,7 +111,7 @@ def main():
         with urlopen(Request('https://paper-api.alpaca.markets/v2/clock',headers=headers),timeout=12) as r:clock=json.load(r)
         market_open=clock.get('is_open') is True
     except Exception as e:market_open=False;clock_error=type(e).__name__
-    report=evaluate(records,now,market_open)
+    report=external_opening_authority(evaluate(records,now,market_open),now)
     if clock_error:report['health']='UNKNOWN_CLOCK';report['clock_error']=clock_error
     previous_path=ROOT/'docs'/'vigilancia.json'
     try:previous=json.loads(previous_path.read_text())
