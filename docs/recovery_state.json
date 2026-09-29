@@ -1,5 +1,8 @@
 {
   "date": "2026-09-29",
   "attempts": 0,
-  "last_attempt": null
+  "last_attempt": null,
+  "incident_number": null,
+  "recovery_notified": false,
+  "failure_signaled": false
 }
