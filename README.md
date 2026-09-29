@@ -1,5 +1,7 @@
 # Radar Fintual autónomo
 
+> **Operación vigente desde 29/09/2026:** el recolector recibe disparos cada cinco minutos desde Supabase, no desde el antiguo cron nativo descrito más abajo. Consulta [Operación V13](docs/OPERACION_SUPABASE_V13.md). Se conserva la documentación y evidencia histórica V12; no reinterpretar las pruebas manuales como automáticas.
+
 Explora acciones y ETF estadounidenses en modo de **solo lectura**. No tiene funciones para operar, leer saldos, ni gestionar posiciones. Está programado para intentar capturas cada cinco minutos durante la sesión ordinaria de Nueva York. La periodicidad intradía aún debe superar la prueba automática de apertura; GitHub Actions puede retrasar o descartar ejecuciones.
 
 ## Qué puede comprobar
