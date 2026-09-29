@@ -1,13 +1,19 @@
 name: Radar Fintual (solo lectura)
+run-name: "Radar ${{ inputs.trigger_source || github.event_name }} ${{ inputs.dispatch_slot || '' }}"
 on:
-  schedule:
-    # UTC 13–20 cubre apertura/cierre con o sin DST; el guard usa NY y reloj oficial.
-    # One 6-cycle bridge every 30 min. The bridge itself samples every 300s.
-    # Prior 5-min cron + 30-min bridge oversubscribed one concurrency group.
-    # UTC 13-21 spans both New York DST states; Alpaca clock guards each cycle.
-    - cron: '2,32 13-21 * * 1-5'
+  # Production cadence is owned by Supabase pg_cron (one cycle every five minutes).
   workflow_dispatch:
     inputs:
+      trigger_source:
+        description: 'Origen del disparo; supabase exige reloj de mercado y slot vigente'
+        required: true
+        default: 'manual'
+        type: choice
+        options: ['manual', 'supabase']
+      dispatch_slot:
+        description: 'Slot UTC del programador externo (ISO 8601)'
+        required: false
+        type: string
       validation_cycles:
         description: 'Ciclos de prueba (3 = arranques separados por 5 minutos)'
         required: true
@@ -47,6 +53,8 @@ jobs:
         id: horario
         env:
           EVENT_NAME: ${{ github.event_name }}
+          TRIGGER_SOURCE: ${{ inputs.trigger_source || 'manual' }}
+          DISPATCH_SLOT: ${{ inputs.dispatch_slot || '' }}
           ALPACA_API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
           ALPACA_API_SECRET_KEY: ${{ secrets.ALPACA_API_SECRET_KEY }}
         run: |
@@ -56,18 +64,26 @@ jobs:
           from zoneinfo import ZoneInfo
           t = d.datetime.now(ZoneInfo('America/New_York'))
           regular = t.weekday() < 5 and ((t.hour == 9 and t.minute >= 30) or 10 <= t.hour < 16)
-          enabled = os.environ['EVENT_NAME'] == 'workflow_dispatch' or (os.environ['EVENT_NAME'] == 'schedule' and regular)
-          if enabled and os.environ['EVENT_NAME'] == 'schedule':
+          external = os.environ.get('TRIGGER_SOURCE') == 'supabase'
+          enabled = os.environ['EVENT_NAME'] == 'workflow_dispatch'
+          if external:
+              try:
+                  slot = d.datetime.fromisoformat(os.environ['DISPATCH_SLOT'].replace('Z', '+00:00'))
+                  age = (d.datetime.now(d.timezone.utc) - slot).total_seconds()
+                  enabled = enabled and regular and -30 <= age <= 240
+              except (ValueError, TypeError):
+                  enabled = False
+          if enabled and external:
               try:
                   import json
                   req = Request('https://paper-api.alpaca.markets/v2/clock', headers={
                       'APCA-API-KEY-ID': os.environ['ALPACA_API_KEY_ID'],
                       'APCA-API-SECRET-KEY': os.environ['ALPACA_API_SECRET_KEY']})
                   with urlopen(req, timeout=12) as r:
-                      enabled = bool(json.load(r).get('is_open'))
+                      enabled = json.load(r).get('is_open') is True
               except Exception as exc:
                   print('Market clock unavailable:', type(exc).__name__)
-                  enabled = False  # Fail closed on uncertain holidays / early close.
+                  enabled = False
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
               f.write(f"enabled={str(enabled).lower()}\n")
           print('NY', t.isoformat(timespec='seconds'), 'event', os.environ['EVENT_NAME'], 'scan', enabled)
@@ -78,5 +94,5 @@ jobs:
           ALPACA_API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
           ALPACA_API_SECRET_KEY: ${{ secrets.ALPACA_API_SECRET_KEY }}
           GITHUB_REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
-          VALIDATION_CYCLES: ${{ inputs.validation_cycles || '1' }}
+          VALIDATION_CYCLES: ${{ inputs.trigger_source == 'supabase' && '1' || inputs.validation_cycles || '1' }}
         run: python ejecutar_radar.py
