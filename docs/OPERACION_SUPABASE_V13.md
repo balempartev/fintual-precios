@@ -25,7 +25,7 @@ select event_id, recorded_at_utc, summary, details
 from public.radar_engineering_log order by recorded_at_utc desc limit 20;
 ~~~
 
-El observador consulta cada minuto; la lectura del estado público añade un parámetro numérico de frescura para evitar que la caché devuelva la captura nocturna. Nunca envía credenciales al dominio raw.
+El observador consulta cada minuto. Se comprobó que el dominio raw seguía devolviendo capturas antiguas incluso con parámetro de frescura; la lectura definitiva usa GitHub Contents API, con Accept application/vnd.github.raw+json. La prueba autenticada devolvió HTTP200 y el run nuevo. No se ampliaron permisos del token ni se envían credenciales al dominio raw. Las respuestas pueden tardar uno o dos ticks en correlacionarse; un ciclo pendiente no prueba fracaso del recolector.
 
 Dos pruebas autónomas nocturnas finalizaron correctamente: runs 36508187270 y 36508589986, arranques 01:30:12Z y 01:35:10Z (298 segundos). No prueban frescura bursátil. El cron temporal se retiró automáticamente tras su límite. La primera captura bursátil del 29/09 fue run 36575536667, inicio13:30:14Z, generación13:31:51Z, con2442 operaciones IEX recientes. La aceptación de tres capturas depende de la vista privada; no se da por aprobada aquí antes de observarla.
 
