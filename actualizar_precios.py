@@ -141,11 +141,14 @@ def update_fintual_tags(verified, priority, max_requests=60, budget_sec=75):
     except (OSError, ValueError, KeyError, TypeError):
         entries = {}
     checked, errors, started = [], [], time.monotonic()
-    for symbol in list(dict.fromkeys(priority + sorted(verified))):
+    def due(symbol):
+        old = entries.get(symbol, {})
+        stamp = parse_time(old.get('checked_at_utc'))
+        days = 30 if old.get('status') == 'TAGS_FOUND' else 7 if old.get('status') == 'NO_PUBLIC_TAGS' else 1
+        return not stamp or (now_utc() - stamp).total_seconds() >= days * 86400
+    queue = sorted((s for s in verified if due(s)), key=lambda s: (entries.get(s, {}).get('checked_at_utc', ''), s))
+    for symbol in queue:
         old = entries.get(symbol)
-        if symbol not in verified or (old and (old.get('status') != 'HTTP_404' or
-                                                   old.get('checked_at_utc', '')[:10] == iso(now_utc())[:10])):
-            continue
         if len(checked) >= max_requests or time.monotonic() - started >= budget_sec:
             break
         url = f'https://fintual.cl/f/acciones/{symbol.lower()}/'
@@ -162,7 +165,13 @@ def update_fintual_tags(verified, priority, max_requests=60, budget_sec=75):
             errors.append({'symbol': symbol, 'error': str(exc)})
             if '(404)' in str(exc):
                 entries[symbol] = {'tags': [], 'source_url': url,
-                                   'checked_at_utc': iso(now_utc()), 'status': 'HTTP_404'}
+                                   'checked_at_utc': iso(now_utc()), 'status': 'HTTP_404',
+                                   'classification': 'UNCLASSIFIED', 'cause': 'UNRESOLVED_NOT_PROOF_OF_REMOVAL',
+                                   'attempt_count': (old or {}).get('attempt_count', 0) + 1}
+            else:
+                entries[symbol] = {**(old or {}), 'source_url': url,
+                                   'checked_at_utc': iso(now_utc()), 'status': 'HTTP_OTHER_ERROR',
+                                   'last_error': str(exc), 'classification': 'UNCLASSIFIED'}
             # A block or rate limit must stop this cycle, not cause 12 retries.
             if '(403)' in str(exc) or '(429)' in str(exc):
                 break
@@ -173,6 +182,10 @@ def update_fintual_tags(verified, priority, max_requests=60, budget_sec=75):
               'verified_symbols': len(verified),
               'with_public_tags': sum(bool(entry.get('tags')) for symbol, entry in entries.items() if symbol in verified),
               'http_404_unverified': sum(entry.get('status') == 'HTTP_404' for symbol, entry in entries.items() if symbol in verified),
+              'unclassified': sum(not entries.get(s, {}).get('tags') for s in verified),
+              'other_errors': sum(entries.get(s, {}).get('status') == 'HTTP_OTHER_ERROR' for s in verified),
+              'coverage_pct': round(100 * sum(bool(entries.get(s, {}).get('tags')) for s in verified) / len(verified), 2) if verified else 0,
+              'retry_policy': {'HTTP_404_days': 1, 'NO_PUBLIC_TAGS_days': 7, 'TAGS_FOUND_days': 30, 'queue': 'oldest_evidence_first', '404_cause': 'unresolved until independent URL evidence'},
               'checked_this_cycle': checked, 'errors': errors}
     write_json(SECTOR_TAGS, result)
     return result
@@ -295,10 +308,29 @@ def fetch_snapshots(symbols, key, secret):
                 if isinstance(payload.get(symbol), dict):
                     results[symbol] = parse_snapshot(symbol, payload[symbol], finished)
         except (RuntimeError, ValueError) as exc:
-            errors.append({"batch_start": offset, "size": len(batch), "error": type(exc).__name__})
+            errors.append({"batch_start": offset, "size": len(batch), "symbols": batch, "error": type(exc).__name__})
         if offset + CHUNK < len(symbols):
             time.sleep(.35)
     return results, errors
+
+
+def fintual_screen_metrics(catalog, symbols, rows, errors):
+    """Counts only; never publish individual licensed prices in public output."""
+    linked = set(catalog.get('fintual_verified', []))
+    raw_assets = catalog.get('assets', {})
+    assets = {a['symbol']: a for a in raw_assets} if isinstance(raw_assets, list) else raw_assets
+    universe = linked.intersection(s for s, a in assets.items()
+                                   if a.get('exchange') not in {'NOT_IN_CURRENT_DIRECTORY', 'UNKNOWN'})
+    sent = universe.intersection(symbols)
+    failed = sent.intersection(s for batch in errors for s in batch.get('symbols', []))
+    with_data = sent.intersection(rows)
+    return {'public_total': len(linked), 'market_intersection': len(universe),
+            'outside_market_directory': len(linked - universe), 'sent': len(sent),
+            'processed': len(sent), 'with_data': len(with_data),
+            'without_data': len(sent - with_data), 'errors': len(failed),
+            'recent_trades': sum(bool(rows[s].get('recent_trade_150sec')) for s in with_data),
+            'coverage_pct': round(100 * len(with_data) / len(universe), 2) if universe else 0,
+            'coverage_denominator': 'MARKET_INTERSECTION', 'licensed_individual_results_public': False}
 
 
 def choose_movers(rows, priority, limit=100):
@@ -412,6 +444,7 @@ def run():
               "listed_candidates": sum(row["exchange"] not in {"NOT_IN_CURRENT_DIRECTORY", "UNKNOWN"} for row in assets.values()),
               "fintual_links_outside_directory": sum(row["exchange"] == "NOT_IN_CURRENT_DIRECTORY" for row in assets.values()),
               "fintual_links_verified": len(catalog["fintual_verified"]),
+              "fintual_screener": fintual_screen_metrics(catalog, symbols, snapshots, errors),
               "fintual_account_tradability_verified": False,
               "sector_filter_applied": False, "sector_classification_complete": False,
               "fintual_company_tags_verified": sector_tags['with_public_tags'],
