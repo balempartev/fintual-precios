@@ -1,5 +1,5 @@
-# Radar Fintual · 2026-10-06T13:36:42Z
+# Radar Fintual · 2026-10-06T13:42:07Z
 
-Candidatos listados: 11966; enlaces Fintual: 3519; snapshots IEX: 11906.
+Candidatos listados: 11966; enlaces Fintual: 3519; snapshots IEX: 11907.
 
 Repositorio público: auditoría y fuentes primarias SEC, sin cotizaciones Alpaca. Ver docs/estado.json.
