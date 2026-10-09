@@ -1,4 +1,4 @@
-# Radar Fintual · 2026-10-09T18:36:37Z
+# Radar Fintual · 2026-10-09T18:41:50Z
 
 Candidatos listados: 11981; enlaces Fintual: 3519; snapshots IEX: 11929.
 
