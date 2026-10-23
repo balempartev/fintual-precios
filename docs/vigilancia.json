@@ -1,6 +1,6 @@
 {
   "health": "CLOSED",
-  "age_sec": 2898.232336,
+  "age_sec": 13052.342822,
   "latest_run_id": "40015150367",
   "opening_acceptance": "EXTERNAL_AUDIT_REQUIRED",
   "genuine_schedule_runs": [],
@@ -12,9 +12,9 @@
   "legacy_native_opening_acceptance": "PENDING",
   "opening_authority": "public.radar_external_daily_capture_audit",
   "opening_evidence_verified_here": false,
-  "checked_at_utc": "2026-10-23T20:44:58.232336+00:00",
+  "checked_at_utc": "2026-10-23T23:34:12.342822+00:00",
   "date_ny": "2026-10-23",
-  "watchdog_run_id": "40021590895",
+  "watchdog_run_id": "40040389317",
   "recovery": null,
   "notification_receipt": "UNVERIFIED",
   "failure_email_once_per_day": false
