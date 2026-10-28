@@ -1,8 +1,7 @@
 {
-  "date": "2026-10-27",
-  "attempts": 0,
-  "last_attempt": null,
-  "incident_number": null,
-  "recovery_notified": false,
-  "failure_signaled": false
+  "date": "2026-10-28",
+  "attempts": 1,
+  "last_attempt": "2026-10-28T18:46:59.788851+00:00",
+  "incident_number": 7,
+  "failure_signaled": true
 }
