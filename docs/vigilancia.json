@@ -1,7 +1,7 @@
 {
-  "health": "STALE_OR_MISSING",
-  "age_sec": null,
-  "latest_run_id": null,
+  "health": "CLOSED",
+  "age_sec": 16355.520344,
+  "latest_run_id": "41906130581",
   "opening_acceptance": "EXTERNAL_AUDIT_REQUIRED",
   "genuine_schedule_runs": [],
   "start_gaps_sec": [],
@@ -9,23 +9,13 @@
   "task_publication_monitor": "BLOCKED_NO_EXTERNAL_TASKS_RECEIPT_API",
   "work_credits_required": false,
   "same_provider_limitation": "This watchdog is independent of the collector job, but shares GitHub availability.",
-  "legacy_native_opening_acceptance": "FAILED",
+  "legacy_native_opening_acceptance": "PENDING",
   "opening_authority": "public.radar_external_daily_capture_audit",
   "opening_evidence_verified_here": false,
-  "checked_at_utc": "2026-11-04T20:23:22.009628+00:00",
+  "checked_at_utc": "2026-11-05T00:57:44.520344+00:00",
   "date_ny": "2026-11-04",
-  "watchdog_run_id": "41906088909",
-  "recovery": "DISPATCH_REQUESTED_NOT_COMPLETED",
+  "watchdog_run_id": "41945147940",
+  "recovery": null,
   "notification_receipt": "UNVERIFIED",
-  "form_reminder": {
-    "number": 12,
-    "url": "https://github.com/balempartev/fintual-precios/issues/12",
-    "existing": false
-  },
-  "incident": {
-    "number": 13,
-    "url": "https://github.com/balempartev/fintual-precios/issues/13",
-    "existing": false
-  },
-  "failure_email_once_per_day": true
+  "failure_email_once_per_day": false
 }
