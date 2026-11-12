@@ -1,7 +1,7 @@
 {
-  "health": "CLOSED",
-  "age_sec": 20631.468554,
-  "latest_run_id": "43093666712",
+  "health": "STALE_OR_MISSING",
+  "age_sec": null,
+  "latest_run_id": null,
   "opening_acceptance": "EXTERNAL_AUDIT_REQUIRED",
   "genuine_schedule_runs": [],
   "start_gaps_sec": [],
@@ -9,13 +9,18 @@
   "task_publication_monitor": "BLOCKED_NO_EXTERNAL_TASKS_RECEIPT_API",
   "work_credits_required": false,
   "same_provider_limitation": "This watchdog is independent of the collector job, but shares GitHub availability.",
-  "legacy_native_opening_acceptance": "PENDING",
+  "legacy_native_opening_acceptance": "FAILED",
   "opening_authority": "public.radar_external_daily_capture_audit",
   "opening_evidence_verified_here": false,
-  "checked_at_utc": "2026-11-12T01:54:31.468554+00:00",
-  "date_ny": "2026-11-11",
-  "watchdog_run_id": "43137686266",
-  "recovery": null,
+  "checked_at_utc": "2026-11-12T20:44:51.957437+00:00",
+  "date_ny": "2026-11-12",
+  "watchdog_run_id": "43303340935",
+  "recovery": "DISPATCH_REQUESTED_NOT_COMPLETED",
   "notification_receipt": "UNVERIFIED",
-  "failure_email_once_per_day": false
+  "incident": {
+    "number": 19,
+    "url": "https://github.com/balempartev/fintual-precios/issues/19",
+    "existing": false
+  },
+  "failure_email_once_per_day": true
 }
