@@ -12,9 +12,9 @@
   "legacy_native_opening_acceptance": "PENDING",
   "opening_authority": "public.radar_external_daily_capture_audit",
   "opening_evidence_verified_here": false,
-  "checked_at_utc": "2026-11-17T21:41:43.524466+00:00",
+  "checked_at_utc": "2026-11-18T03:08:41.393021+00:00",
   "date_ny": "2026-11-17",
-  "watchdog_run_id": "44182461357",
+  "watchdog_run_id": "44228300334",
   "recovery": null,
   "notification_receipt": "UNVERIFIED",
   "failure_email_once_per_day": false
